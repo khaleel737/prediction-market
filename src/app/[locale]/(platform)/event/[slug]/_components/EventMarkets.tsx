@@ -86,62 +86,21 @@ export function resolveWinningOutcomeIndex(market: Event['markets'][number]) {
   return resolveUniqueBinaryWinningOutcomeIndexFromPayoutNumerators(market.condition?.payout_numerators)
 }
 
-interface CashOutModalPayload {
-  market: Event['markets'][number]
-  outcomeLabel: string
-  outcomeIndex: typeof OUTCOME_INDEX.YES | typeof OUTCOME_INDEX.NO
-  shares: number
-  filledShares: number
-  avgPriceCents: number | null
-  receiveAmount: number | null
-  sellBids: NormalizedBookLevel[]
-}
+function useTweetMarketResolution({
+  event,
+  currentTimestamp,
+}: {
+  event: Event
+  currentTimestamp: number | null
+}) {
+  const isTweetMarketEvent = useMemo(function detectTweetMarketEvent() {
+    return isTweetMarketsEvent(event)
+  }, [event])
 
-export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
-  const t = useExtracted()
-  const currentTimestamp = useCurrentTimestamp({ intervalMs: 60_000 })
-  const normalizeOutcomeLabel = useOutcomeLabel()
-  const selectedMarketId = useOrder(state => state.market?.condition_id)
-  const selectedOutcome = useOrder(state => state.outcome)
-  const setMarket = useOrder(state => state.setMarket)
-  const setOutcome = useOrder(state => state.setOutcome)
-  const setSide = useOrder(state => state.setSide)
-  const setType = useOrder(state => state.setType)
-  const setIsMobileOrderPanelOpen = useOrder(state => state.setIsMobileOrderPanelOpen)
-  const setAmount = useOrder(state => state.setAmount)
-  const inputRef = useOrder(state => state.inputRef)
-  const user = useUser()
-  const isSingleMarket = useIsSingleMarket()
-  const isNegRiskEnabled = Boolean(event.enable_neg_risk || event.neg_risk)
-  const isNegRiskAugmented = Boolean(event.neg_risk_augmented)
-  const isTweetMarketEvent = useMemo(
-    () => isTweetMarketsEvent(event),
-    [event],
-  )
-  const { rows: marketRows, hasChanceData } = useEventMarketRows(event)
   const xtrackerTweetCountQuery = useXTrackerTweetCount(event, isTweetMarketEvent)
-  const {
-    expandedMarketId,
-    toggleMarket,
-    expandMarket,
-    selectDetailTab,
-    getSelectedDetailTab,
-  } = useMarketDetailController(event.id)
-  const reviewConditionIds = useMemo(() => {
-    if (currentTimestamp == null) {
-      return new Set<string>()
-    }
-
-    const ids = new Set<string>()
-    event.markets.forEach((market) => {
-      if (isResolutionReviewActive(market, { nowMs: currentTimestamp })) {
-        ids.add(market.condition_id)
-      }
-    })
-    return ids
-  }, [currentTimestamp, event.markets])
   const xtrackerTotalCount = xtrackerTweetCountQuery.data?.totalCount ?? null
-  const isTweetMarketFinal = useMemo(() => {
+
+  const isTweetMarketFinal = useMemo(function detectTweetMarketFinal() {
     if (currentTimestamp == null) {
       return false
     }
@@ -158,7 +117,8 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
     const parsedEndMs = Date.parse(event.end_date)
     return Number.isFinite(parsedEndMs) && currentTimestamp >= parsedEndMs
   }, [currentTimestamp, event.end_date, xtrackerTweetCountQuery.data?.trackingEndMs])
-  const resolveResolvedOutcomeIndex = useCallback((market: Event['markets'][number]) => {
+
+  const resolveResolvedOutcomeIndex = useCallback(function resolveResolvedOutcomeIndex(market: Event['markets'][number]) {
     if (!isMarketResolved(market)) {
       return null
     }
@@ -169,21 +129,37 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
       totalCount: xtrackerTotalCount,
     })
   }, [event, isTweetMarketEvent, isTweetMarketFinal, xtrackerTotalCount])
-  const chanceRefreshQueryKeys = useMemo(
-    () => [
-      ['event-price-history', event.id] as const,
-      ['event-market-quotes'] as const,
-    ],
-    [event.id],
-  )
-  const [showResolvedMarkets, setShowResolvedMarkets] = useState(false)
-  const {
-    isFetching: isPriceHistoryFetching,
-  } = useChanceRefresh({ queryKeys: chanceRefreshQueryKeys })
-  const eventTokenIds = useMemo(() => {
+
+  return { resolveResolvedOutcomeIndex }
+}
+
+function useReviewConditionIds({
+  markets,
+  currentTimestamp,
+}: {
+  markets: Event['markets']
+  currentTimestamp: number | null
+}) {
+  return useMemo(function buildReviewConditionIds() {
+    if (currentTimestamp == null) {
+      return new Set<string>()
+    }
+
+    const ids = new Set<string>()
+    markets.forEach((market) => {
+      if (isResolutionReviewActive(market, { nowMs: currentTimestamp })) {
+        ids.add(market.condition_id)
+      }
+    })
+    return ids
+  }, [currentTimestamp, markets])
+}
+
+function useEventTokenIds(markets: Event['markets']) {
+  return useMemo(function buildEventTokenIds() {
     const ids = new Set<string>()
 
-    event.markets.forEach((market) => {
+    markets.forEach((market) => {
       market.outcomes.forEach((currentOutcome) => {
         if (currentOutcome.token_id) {
           ids.add(currentOutcome.token_id)
@@ -192,20 +168,185 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
     })
 
     return Array.from(ids)
-  }, [event.markets])
-  const shouldEnableOrderBookPolling = !isSingleMarket
-  const orderBookQuery = useOrderBookSummaries(eventTokenIds, { enabled: shouldEnableOrderBookPolling })
-  const orderBookSummaries = orderBookQuery.data
-  const isOrderBookLoading = orderBookQuery.isLoading
-  const shouldShowOrderBookLoader = !shouldEnableOrderBookPolling || (isOrderBookLoading && !orderBookSummaries)
-  const ownerAddress = useMemo(() => {
+  }, [markets])
+}
+
+function useOwnerAddress(user: { proxy_wallet_address?: string | null, proxy_wallet_status?: string | null } | null) {
+  return useMemo(function resolveOwnerAddress() {
     if (user && user.proxy_wallet_address && user.proxy_wallet_status === 'deployed') {
       return user.proxy_wallet_address as `0x${string}`
     }
     return '' as `0x${string}`
   }, [user])
-  const { sharesByCondition } = useUserShareBalances({ event, ownerAddress })
+}
+
+function useCashOutFlow({
+  isMobile,
+  orderBookSummaries,
+  orderBookQuery,
+  setType,
+  setSide,
+  setMarket,
+  setOutcome,
+  setAmount,
+  setIsMobileOrderPanelOpen,
+}: {
+  isMobile: boolean
+  orderBookSummaries: OrderBookSummariesResponse | undefined
+  orderBookQuery: { refetch: () => Promise<{ data?: OrderBookSummariesResponse }> }
+  setType: (type: typeof ORDER_TYPE.MARKET | typeof ORDER_TYPE.LIMIT) => void
+  setSide: (side: typeof ORDER_SIDE.BUY | typeof ORDER_SIDE.SELL) => void
+  setMarket: (market: Event['markets'][number]) => void
+  setOutcome: (outcome: Event['markets'][number]['outcomes'][number]) => void
+  setAmount: (value: string) => void
+  setIsMobileOrderPanelOpen: (value: boolean) => void
+}) {
   const [cashOutPayload, setCashOutPayload] = useState<CashOutModalPayload | null>(null)
+
+  const handleCashOut = useCallback(async function handleCashOut(
+    market: Event['markets'][number],
+    tag: MarketPositionTag,
+  ) {
+    const outcome = market.outcomes.find(item => item.outcome_index === tag.outcomeIndex)
+      ?? market.outcomes[tag.outcomeIndex]
+    if (!outcome) {
+      return
+    }
+
+    const tokenId = outcome.token_id ? String(outcome.token_id) : null
+    let summary = tokenId ? orderBookSummaries?.[tokenId] : undefined
+    if (!summary && tokenId) {
+      try {
+        const result = await orderBookQuery.refetch()
+        summary = result.data?.[tokenId]
+      }
+      catch {
+        summary = undefined
+      }
+    }
+    const bids = normalizeBookLevels(summary?.bids, 'bid')
+    const asks = normalizeBookLevels(summary?.asks, 'ask')
+    const fill = calculateMarketFill(ORDER_SIDE.SELL, tag.shares, bids, asks)
+
+    setType(ORDER_TYPE.MARKET)
+    setSide(ORDER_SIDE.SELL)
+    setMarket(market)
+    setOutcome(outcome)
+    setAmount(formatAmountInputValue(tag.shares, { roundingMode: 'floor' }))
+    if (isMobile) {
+      setIsMobileOrderPanelOpen(true)
+    }
+
+    setCashOutPayload({
+      market,
+      outcomeLabel: tag.label,
+      outcomeIndex: tag.outcomeIndex,
+      shares: tag.shares,
+      filledShares: fill.filledShares,
+      avgPriceCents: fill.avgPriceCents,
+      receiveAmount: fill.totalCost > 0 ? fill.totalCost : null,
+      sellBids: bids,
+    })
+  }, [isMobile, orderBookQuery, orderBookSummaries, setAmount, setIsMobileOrderPanelOpen, setMarket, setOutcome, setSide, setType])
+
+  const handleCashOutModalChange = useCallback(function handleCashOutModalChange(open: boolean) {
+    if (!open) {
+      setCashOutPayload(null)
+    }
+  }, [])
+
+  const handleCashOutSubmit = useCallback(function handleCashOutSubmit(sharesToSell: number) {
+    if (!(sharesToSell > 0)) {
+      return
+    }
+    setAmount(formatAmountInputValue(sharesToSell, { roundingMode: 'floor' }))
+    setCashOutPayload(null)
+    const form = document.getElementById('event-order-form') as HTMLFormElement | null
+    form?.requestSubmit()
+  }, [setAmount])
+
+  const dismissCashOut = useCallback(function dismissCashOut() {
+    setCashOutPayload(null)
+  }, [])
+
+  return { cashOutPayload, handleCashOut, handleCashOutModalChange, handleCashOutSubmit, dismissCashOut }
+}
+
+function useMarketInteractionHandlers({
+  selectedOutcome,
+  toggleMarket,
+  expandMarket,
+  setMarket,
+  setOutcome,
+  setSide,
+  setIsMobileOrderPanelOpen,
+  inputRef,
+}: {
+  selectedOutcome: Event['markets'][number]['outcomes'][number] | null | undefined
+  toggleMarket: (conditionId: string) => void
+  expandMarket: (conditionId: string) => void
+  setMarket: (market: Event['markets'][number]) => void
+  setOutcome: (outcome: Event['markets'][number]['outcomes'][number]) => void
+  setSide: (side: typeof ORDER_SIDE.BUY | typeof ORDER_SIDE.SELL) => void
+  setIsMobileOrderPanelOpen: (value: boolean) => void
+  inputRef: React.RefObject<HTMLInputElement | null> | null | undefined
+}) {
+  const handleToggle = useCallback(function handleToggle(market: Event['markets'][number]) {
+    toggleMarket(market.condition_id)
+    setMarket(market)
+    setSide(ORDER_SIDE.BUY)
+
+    if (!selectedOutcome || selectedOutcome.condition_id !== market.condition_id) {
+      const defaultOutcome = market.outcomes[0]
+      if (defaultOutcome) {
+        setOutcome(defaultOutcome)
+      }
+    }
+  }, [toggleMarket, selectedOutcome, setMarket, setOutcome, setSide])
+
+  const handleBuy = useCallback(function handleBuy(
+    market: Event['markets'][number],
+    outcomeIndex: number,
+    source: 'mobile' | 'desktop',
+  ) {
+    expandMarket(market.condition_id)
+    setMarket(market)
+    const outcome = market.outcomes[outcomeIndex]
+    if (outcome) {
+      setOutcome(outcome)
+    }
+    setSide(ORDER_SIDE.BUY)
+
+    if (source === 'mobile') {
+      setIsMobileOrderPanelOpen(true)
+    }
+    else {
+      inputRef?.current?.focus()
+    }
+  }, [expandMarket, inputRef, setIsMobileOrderPanelOpen, setMarket, setOutcome, setSide])
+
+  return { handleToggle, handleBuy }
+}
+
+function useEventUserPositionsData({
+  event,
+  ownerAddress,
+  sharesByCondition,
+  isNegRiskEnabled,
+  isNegRiskAugmented,
+  userId,
+  normalizeOutcomeLabel,
+  t,
+}: {
+  event: Event
+  ownerAddress: `0x${string}`
+  sharesByCondition: SharesByCondition
+  isNegRiskEnabled: boolean
+  isNegRiskAugmented: boolean
+  userId: string | undefined
+  normalizeOutcomeLabel: (value: string | null | undefined) => string
+  t: ReturnType<typeof useExtracted>
+}) {
   const { data: userPositions } = useQuery<UserPosition[]>({
     queryKey: ['event-user-positions', ownerAddress, event.id],
     enabled: Boolean(ownerAddress),
@@ -221,6 +362,7 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
         signal,
       }),
   })
+
   const { data: otherBalances } = useQuery({
     queryKey: ['event-other-balance', ownerAddress, event.slug],
     enabled: Boolean(ownerAddress && isNegRiskAugmented && userPositions),
@@ -233,7 +375,8 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
         signal,
       }),
   })
-  const otherShares = useMemo(() => {
+
+  const otherShares = useMemo(function sumOtherShares() {
     if (!otherBalances?.length) {
       return 0
     }
@@ -242,13 +385,14 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
       return total + (Number.isFinite(size) ? size : 0)
     }, 0)
   }, [otherBalances])
-  const shouldShowOtherRow = isNegRiskAugmented && otherShares > 0
+
   const { data: eventOpenOrdersData } = useUserOpenOrdersQuery({
-    userId: user?.id,
+    userId,
     eventSlug: event.slug,
-    enabled: Boolean(user?.id),
+    enabled: Boolean(userId),
   })
-  const mergedEventUserPositions = useMemo(() => {
+
+  const mergedEventUserPositions = useMemo(function mergeUserPositionsWithTokenBalances() {
     const basePositions = userPositions ?? []
     const deltas = event.markets.flatMap((market) => {
       const tokenShares = sharesByCondition[market.condition_id]
@@ -307,7 +451,7 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
     return applyPositionDeltasToUserPositions(basePositions, deltas) ?? basePositions
   }, [event.markets, event.slug, sharesByCondition, userPositions])
 
-  const openOrdersCountByCondition = useMemo(() => {
+  const openOrdersCountByCondition = useMemo(function countOpenOrdersByCondition() {
     const pages = eventOpenOrdersData?.pages ?? []
     return pages.reduce<Record<string, number>>((acc, page) => {
       page.data.forEach((order) => {
@@ -320,7 +464,8 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
       return acc
     }, {})
   }, [eventOpenOrdersData?.pages])
-  const positionTagsByCondition = useMemo(() => {
+
+  const positionTagsByCondition = useMemo(function buildPositionTagsByCondition() {
     if (!mergedEventUserPositions.length) {
       return {}
     }
@@ -400,7 +545,7 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
     }, {})
   }, [event.markets, mergedEventUserPositions, normalizeOutcomeLabel, t])
 
-  const convertOptions = useMemo(() => {
+  const convertOptions = useMemo(function buildConvertOptions() {
     if (!isNegRiskEnabled || !mergedEventUserPositions.length) {
       return []
     }
@@ -449,7 +594,7 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
     )
   }, [event.markets, isNegRiskEnabled, mergedEventUserPositions])
 
-  const eventOutcomes = useMemo(() => {
+  const eventOutcomes = useMemo(function buildEventOutcomes() {
     return event.markets.map(market => ({
       conditionId: market.condition_id,
       questionId: market.question_id,
@@ -458,101 +603,24 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
     }))
   }, [event.markets])
 
-  const handleCashOut = useCallback(async (market: Event['markets'][number], tag: MarketPositionTag) => {
-    const outcome = market.outcomes.find(item => item.outcome_index === tag.outcomeIndex)
-      ?? market.outcomes[tag.outcomeIndex]
-    if (!outcome) {
-      return
-    }
+  return {
+    otherShares,
+    openOrdersCountByCondition,
+    positionTagsByCondition,
+    convertOptions,
+    eventOutcomes,
+  }
+}
 
-    const tokenId = outcome.token_id ? String(outcome.token_id) : null
-    let summary = tokenId ? orderBookSummaries?.[tokenId] : undefined
-    if (!summary && tokenId) {
-      try {
-        const result = await orderBookQuery.refetch()
-        summary = result.data?.[tokenId]
-      }
-      catch {
-        summary = undefined
-      }
-    }
-    const bids = normalizeBookLevels(summary?.bids, 'bid')
-    const asks = normalizeBookLevels(summary?.asks, 'ask')
-    const fill = calculateMarketFill(ORDER_SIDE.SELL, tag.shares, bids, asks)
-
-    setType(ORDER_TYPE.MARKET)
-    setSide(ORDER_SIDE.SELL)
-    setMarket(market)
-    setOutcome(outcome)
-    setAmount(formatAmountInputValue(tag.shares, { roundingMode: 'floor' }))
-    if (isMobile) {
-      setIsMobileOrderPanelOpen(true)
-    }
-
-    setCashOutPayload({
-      market,
-      outcomeLabel: tag.label,
-      outcomeIndex: tag.outcomeIndex,
-      shares: tag.shares,
-      filledShares: fill.filledShares,
-      avgPriceCents: fill.avgPriceCents,
-      receiveAmount: fill.totalCost > 0 ? fill.totalCost : null,
-      sellBids: bids,
-    })
-  }, [isMobile, orderBookQuery, orderBookSummaries, setAmount, setIsMobileOrderPanelOpen, setMarket, setOutcome, setSide, setType])
-
-  const handleCashOutModalChange = useCallback((open: boolean) => {
-    if (!open) {
-      setCashOutPayload(null)
-    }
-  }, [])
-
-  const handleCashOutSubmit = useCallback((sharesToSell: number) => {
-    if (!(sharesToSell > 0)) {
-      return
-    }
-    setAmount(formatAmountInputValue(sharesToSell, { roundingMode: 'floor' }))
-    setCashOutPayload(null)
-    const form = document.getElementById('event-order-form') as HTMLFormElement | null
-    form?.requestSubmit()
-  }, [setAmount])
-
-  const chanceHighlightVersion = hasChanceData
-    ? (isPriceHistoryFetching ? 'fetching' : 'ready')
-    : 'idle'
-
-  const handleToggle = useCallback((market: Event['markets'][number]) => {
-    toggleMarket(market.condition_id)
-    setMarket(market)
-    setSide(ORDER_SIDE.BUY)
-
-    if (!selectedOutcome || selectedOutcome.condition_id !== market.condition_id) {
-      const defaultOutcome = market.outcomes[0]
-      if (defaultOutcome) {
-        setOutcome(defaultOutcome)
-      }
-    }
-  }, [toggleMarket, selectedOutcome, setMarket, setOutcome, setSide])
-
-  const handleBuy = useCallback((market: Event['markets'][number], outcomeIndex: number, source: 'mobile' | 'desktop') => {
-    expandMarket(market.condition_id)
-    setMarket(market)
-    const outcome = market.outcomes[outcomeIndex]
-    if (outcome) {
-      setOutcome(outcome)
-    }
-    setSide(ORDER_SIDE.BUY)
-
-    if (source === 'mobile') {
-      setIsMobileOrderPanelOpen(true)
-    }
-    else {
-      inputRef?.current?.focus()
-    }
-  }, [expandMarket, inputRef, setIsMobileOrderPanelOpen, setMarket, setOutcome, setSide])
-
-  const pricedMarketRows = useMemo(
-    () => marketRows.map(row => ({
+function useMarketRowsByResolution({
+  marketRows,
+  orderBookSummaries,
+}: {
+  marketRows: EventMarketRow[]
+  orderBookSummaries: OrderBookSummariesResponse | undefined
+}) {
+  const pricedMarketRows = useMemo(function buildPricedMarketRows() {
+    return marketRows.map(row => ({
       ...row,
       yesPriceValue: resolveOutcomeUnitPrice(row.market, OUTCOME_INDEX.YES, {
         orderBookSummaries,
@@ -562,10 +630,10 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
         orderBookSummaries,
         side: ORDER_SIDE.BUY,
       }),
-    })),
-    [marketRows, orderBookSummaries],
-  )
-  const { activeDisplayRows, resolvedDisplayRows } = useMemo(() => {
+    }))
+  }, [marketRows, orderBookSummaries])
+
+  const { activeDisplayRows, resolvedDisplayRows } = useMemo(function splitRowsByResolution() {
     const activeRows: EventMarketRow[] = []
     const resolvedRows: EventMarketRow[] = []
 
@@ -580,7 +648,8 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
 
     return { activeDisplayRows: activeRows, resolvedDisplayRows: resolvedRows }
   }, [pricedMarketRows])
-  const sortedResolvedDisplayRows = useMemo(() => {
+
+  const sortedResolvedDisplayRows = useMemo(function sortResolvedRowsByEndTime() {
     if (!resolvedDisplayRows.length) {
       return resolvedDisplayRows
     }
@@ -599,6 +668,111 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
       })
       .map(item => item.row)
   }, [resolvedDisplayRows])
+
+  return { pricedMarketRows, activeDisplayRows, sortedResolvedDisplayRows }
+}
+
+interface CashOutModalPayload {
+  market: Event['markets'][number]
+  outcomeLabel: string
+  outcomeIndex: typeof OUTCOME_INDEX.YES | typeof OUTCOME_INDEX.NO
+  shares: number
+  filledShares: number
+  avgPriceCents: number | null
+  receiveAmount: number | null
+  sellBids: NormalizedBookLevel[]
+}
+
+export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
+  const t = useExtracted()
+  const currentTimestamp = useCurrentTimestamp({ intervalMs: 60_000 })
+  const normalizeOutcomeLabel = useOutcomeLabel()
+  const selectedMarketId = useOrder(state => state.market?.condition_id)
+  const selectedOutcome = useOrder(state => state.outcome)
+  const setMarket = useOrder(state => state.setMarket)
+  const setOutcome = useOrder(state => state.setOutcome)
+  const setSide = useOrder(state => state.setSide)
+  const setType = useOrder(state => state.setType)
+  const setIsMobileOrderPanelOpen = useOrder(state => state.setIsMobileOrderPanelOpen)
+  const setAmount = useOrder(state => state.setAmount)
+  const inputRef = useOrder(state => state.inputRef)
+  const user = useUser()
+  const isSingleMarket = useIsSingleMarket()
+  const isNegRiskEnabled = Boolean(event.enable_neg_risk || event.neg_risk)
+  const isNegRiskAugmented = Boolean(event.neg_risk_augmented)
+  const { rows: marketRows, hasChanceData } = useEventMarketRows(event)
+  const {
+    expandedMarketId,
+    toggleMarket,
+    expandMarket,
+    selectDetailTab,
+    getSelectedDetailTab,
+  } = useMarketDetailController(event.id)
+  const reviewConditionIds = useReviewConditionIds({ markets: event.markets, currentTimestamp })
+  const { resolveResolvedOutcomeIndex } = useTweetMarketResolution({ event, currentTimestamp })
+  const chanceRefreshQueryKeys = useMemo(
+    () => [
+      ['event-price-history', event.id] as const,
+      ['event-market-quotes'] as const,
+    ],
+    [event.id],
+  )
+  const { isFetching: isPriceHistoryFetching } = useChanceRefresh({ queryKeys: chanceRefreshQueryKeys })
+  const [showResolvedMarkets, setShowResolvedMarkets] = useState(false)
+  const eventTokenIds = useEventTokenIds(event.markets)
+  const shouldEnableOrderBookPolling = !isSingleMarket
+  const orderBookQuery = useOrderBookSummaries(eventTokenIds, { enabled: shouldEnableOrderBookPolling })
+  const orderBookSummaries = orderBookQuery.data
+  const isOrderBookLoading = orderBookQuery.isLoading
+  const shouldShowOrderBookLoader = !shouldEnableOrderBookPolling || (isOrderBookLoading && !orderBookSummaries)
+  const ownerAddress = useOwnerAddress(user)
+  const { sharesByCondition } = useUserShareBalances({ event, ownerAddress })
+  const {
+    otherShares,
+    openOrdersCountByCondition,
+    positionTagsByCondition,
+    convertOptions,
+    eventOutcomes,
+  } = useEventUserPositionsData({
+    event,
+    ownerAddress,
+    sharesByCondition,
+    isNegRiskEnabled,
+    isNegRiskAugmented,
+    userId: user?.id,
+    normalizeOutcomeLabel,
+    t,
+  })
+  const shouldShowOtherRow = isNegRiskAugmented && otherShares > 0
+  const { cashOutPayload, handleCashOut, handleCashOutModalChange, handleCashOutSubmit, dismissCashOut } = useCashOutFlow({
+    isMobile,
+    orderBookSummaries,
+    orderBookQuery,
+    setType,
+    setSide,
+    setMarket,
+    setOutcome,
+    setAmount,
+    setIsMobileOrderPanelOpen,
+  })
+  const { handleToggle, handleBuy } = useMarketInteractionHandlers({
+    selectedOutcome,
+    toggleMarket,
+    expandMarket,
+    setMarket,
+    setOutcome,
+    setSide,
+    setIsMobileOrderPanelOpen,
+    inputRef,
+  })
+  const chanceHighlightVersion = hasChanceData
+    ? (isPriceHistoryFetching ? 'fetching' : 'ready')
+    : 'idle'
+
+  const { pricedMarketRows, activeDisplayRows, sortedResolvedDisplayRows } = useMarketRowsByResolution({
+    marketRows,
+    orderBookSummaries,
+  })
   const showResolvedInline = pricedMarketRows.length > 0
     && pricedMarketRows.every(row => isMarketResolved(row.market))
   const primaryMarketRows = showResolvedInline ? sortedResolvedDisplayRows : activeDisplayRows
@@ -813,7 +987,7 @@ export default function EventMarkets({ event, isMobile }: EventMarketsProps) {
           onCashOut={handleCashOutSubmit}
           onEditOrder={(sharesToSell) => {
             setAmount(formatAmountInputValue(sharesToSell, { roundingMode: 'floor' }))
-            setCashOutPayload(null)
+            dismissCashOut()
           }}
         />
       )}
@@ -1117,7 +1291,7 @@ function MarketDetailTabs({
     [market.condition, siteName],
   )
 
-  useEffect(() => {
+  useEffect(function syncSelectedTabWithController() {
     if (selectedTab !== controlledTab) {
       select(selectedTab)
     }
