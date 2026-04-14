@@ -34,6 +34,66 @@ interface ReplyItemProps {
   isTogglingLikeForComment: (commentId: string) => boolean
 }
 
+function useCommentReplyItemHandlers({
+  reply,
+  commentId,
+  user,
+  replyingTo,
+  onSetReplyingTo,
+  onSetReplyText,
+  onLikeToggle,
+  onDelete,
+}: {
+  reply: Comment
+  commentId: string
+  user: any
+  replyingTo: string | null
+  onSetReplyingTo: (id: string | null) => void
+  onSetReplyText: (text: string) => void
+  onLikeToggle: (commentId: string, replyId: string) => void
+  onDelete: (commentId: string, replyId: string) => void
+}) {
+  const { open } = useAppKit()
+
+  const handleReplyClick = useCallback(function handleReplyClick() {
+    if (!user) {
+      queueMicrotask(() => open())
+      return
+    }
+    const shouldOpen = replyingTo !== reply.id
+    onSetReplyingTo(shouldOpen ? reply.id : null)
+    if (shouldOpen) {
+      onSetReplyText('')
+    }
+  }, [user, reply, replyingTo, onSetReplyingTo, onSetReplyText, open])
+
+  const handleLikeToggle = useCallback(function handleLikeToggle() {
+    onLikeToggle(commentId, reply.id)
+  }, [commentId, reply.id, onLikeToggle])
+
+  const handleDelete = useCallback(function handleDelete() {
+    onDelete(commentId, reply.id)
+  }, [commentId, reply.id, onDelete])
+
+  const handleReplyAdded = useCallback(function handleReplyAdded() {
+    onSetReplyingTo(null)
+    onSetReplyText('')
+  }, [onSetReplyingTo, onSetReplyText])
+
+  const handleReplyCancel = useCallback(function handleReplyCancel() {
+    onSetReplyingTo(null)
+    onSetReplyText('')
+  }, [onSetReplyingTo, onSetReplyText])
+
+  return {
+    handleReplyClick,
+    handleLikeToggle,
+    handleDelete,
+    handleReplyAdded,
+    handleReplyCancel,
+  }
+}
+
 export default function EventCommentReplyItem({
   reply,
   parentDisplayName,
@@ -53,40 +113,25 @@ export default function EventCommentReplyItem({
   isCreatingComment,
   isTogglingLikeForComment,
 }: ReplyItemProps) {
-  const { open } = useAppKit()
   const { displayName, profileSlug } = resolveCommentUserIdentity(reply)
   const parentHref = parentProfileSlug ? ((buildPublicProfilePath(parentProfileSlug) ?? '#') as any) : ('#' as any)
   const t = useExtracted()
-
-  const handleReplyClick = useCallback(() => {
-    if (!user) {
-      queueMicrotask(() => open())
-      return
-    }
-    const shouldOpen = replyingTo !== reply.id
-    onSetReplyingTo(shouldOpen ? reply.id : null)
-    if (shouldOpen) {
-      onSetReplyText('')
-    }
-  }, [user, reply, replyingTo, onSetReplyingTo, onSetReplyText, open])
-
-  const handleLikeToggle = useCallback(() => {
-    onLikeToggle(commentId, reply.id)
-  }, [commentId, reply.id, onLikeToggle])
-
-  const handleDelete = useCallback(() => {
-    onDelete(commentId, reply.id)
-  }, [commentId, reply.id, onDelete])
-
-  const handleReplyAdded = useCallback(() => {
-    onSetReplyingTo(null)
-    onSetReplyText('')
-  }, [onSetReplyingTo, onSetReplyText])
-
-  const handleReplyCancel = useCallback(() => {
-    onSetReplyingTo(null)
-    onSetReplyText('')
-  }, [onSetReplyingTo, onSetReplyText])
+  const {
+    handleReplyClick,
+    handleLikeToggle,
+    handleDelete,
+    handleReplyAdded,
+    handleReplyCancel,
+  } = useCommentReplyItemHandlers({
+    reply,
+    commentId,
+    user,
+    replyingTo,
+    onSetReplyingTo,
+    onSetReplyText,
+    onLikeToggle,
+    onDelete,
+  })
 
   return (
     <>
