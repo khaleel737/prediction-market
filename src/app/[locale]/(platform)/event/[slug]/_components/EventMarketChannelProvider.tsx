@@ -203,25 +203,32 @@ function coerceBookLevels(value: unknown): OrderbookLevelSummary[] {
     .filter((entry): entry is OrderbookLevelSummary => entry !== null)
 }
 
-function EventMarketChannelProvider({
-  markets,
-  children,
-}: {
-  markets: Market[]
-  children: React.ReactNode
-}) {
-  const queryClient = useQueryClient()
-  const listenersRef = useRef(new Set<MarketChannelListener>())
-  const [connectionStatus, setConnectionStatus] = useState<MarketChannelStatus>('connecting')
-  const { tokenIds, tokenIdToConditionId } = useMemo(
-    () => buildTokenMapping(markets),
-    [markets],
-  )
-  const wsUrl = process.env.WS_CLOB_URL!
-  const hasMarketChannel = tokenIds.length > 0 && Boolean(wsUrl)
-  const status: MarketChannelStatus = hasMarketChannel ? connectionStatus : 'offline'
+function useTokenMapping(markets: Market[]): TokenMapping {
+  return useMemo(() => buildTokenMapping(markets), [markets])
+}
 
-  useEffect(() => {
+function useMarketChannelConnection({
+  tokenIds,
+  tokenIdToConditionId,
+  wsUrl,
+  hasMarketChannel,
+  queryClient,
+}: {
+  tokenIds: string[]
+  tokenIdToConditionId: Map<string, string>
+  wsUrl: string
+  hasMarketChannel: boolean
+  queryClient: ReturnType<typeof useQueryClient>
+}) {
+  const [connectionStatus, setConnectionStatus] = useState<MarketChannelStatus>('connecting')
+  const listenersRef = useRef(new Set<MarketChannelListener>())
+
+  function subscribe(listener: MarketChannelListener) {
+    listenersRef.current.add(listener)
+    return () => listenersRef.current.delete(listener)
+  }
+
+  useEffect(function establishMarketChannelConnection() {
     if (!hasMarketChannel) {
       return
     }
@@ -338,7 +345,7 @@ function EventMarketChannelProvider({
     connect()
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    return () => {
+    return function teardownMarketChannelConnection() {
       isActive = false
       clearReconnect()
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -352,16 +359,31 @@ function EventMarketChannelProvider({
     }
   }, [hasMarketChannel, queryClient, tokenIds, tokenIdToConditionId, wsUrl])
 
-  const contextValue = useMemo(
-    () => ({
-      status,
-      subscribe(listener: MarketChannelListener) {
-        listenersRef.current.add(listener)
-        return () => listenersRef.current.delete(listener)
-      },
-    }),
-    [status],
-  )
+  const status: MarketChannelStatus = hasMarketChannel ? connectionStatus : 'offline'
+  return { status, subscribe }
+}
+
+function EventMarketChannelProvider({
+  markets,
+  children,
+}: {
+  markets: Market[]
+  children: React.ReactNode
+}) {
+  const queryClient = useQueryClient()
+  const { tokenIds, tokenIdToConditionId } = useTokenMapping(markets)
+  const wsUrl = process.env.WS_CLOB_URL!
+  const hasMarketChannel = tokenIds.length > 0 && Boolean(wsUrl)
+
+  const { status, subscribe } = useMarketChannelConnection({
+    tokenIds,
+    tokenIdToConditionId,
+    wsUrl,
+    hasMarketChannel,
+    queryClient,
+  })
+
+  const contextValue = useMemo(() => ({ status, subscribe }), [status, subscribe])
 
   return (
     <MarketChannelContext value={contextValue}>
@@ -383,14 +405,14 @@ export function useMarketChannelSubscription(listener: MarketChannelListener) {
   if (!context) {
     throw new Error('useMarketChannelSubscription must be used within EventMarketChannelProvider')
   }
-  useEffect(() => {
+  useEffect(function subscribeToMarketChannel() {
     return context.subscribe(listener)
   }, [context, listener])
 }
 
 export function useOptionalMarketChannelSubscription(listener: MarketChannelListener) {
   const context = use(MarketChannelContext)
-  useEffect(() => {
+  useEffect(function subscribeToOptionalMarketChannel() {
     if (!context) {
       return
     }
