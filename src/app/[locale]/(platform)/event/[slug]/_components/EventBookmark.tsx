@@ -120,10 +120,13 @@ function createBookmarkOverrideState(
   }
 }
 
-export default function EventBookmark({
+function useBookmarkState({
   event,
-  refreshStatusOnMount = true,
-}: EventBookmarkProps) {
+  refreshStatusOnMount,
+}: {
+  event: Event
+  refreshStatusOnMount: boolean
+}) {
   const { open } = useAppKit()
   const user = useUser()
   const queryClient = useQueryClient()
@@ -208,14 +211,14 @@ export default function EventBookmark({
     }
   }
 
-  useEffect(() => {
+  useEffect(function refreshInitialBookmarkStatus() {
     if (!refreshStatusOnMount || !user?.id) {
       return
     }
 
     let isActive = true
 
-    void (async () => {
+    void (async function fetchInitialBookmarkStatus() {
       const response = await getBookmarkStatusAction(event.id)
       if (!isActive || response.error || typeof response.data !== 'boolean') {
         return
@@ -223,10 +226,22 @@ export default function EventBookmark({
       setBookmarkOverride(createBookmarkOverrideState(event.id, event.is_bookmarked, response.data))
     })()
 
-    return () => {
+    return function cancelInitialBookmarkFetch() {
       isActive = false
     }
   }, [event.id, event.is_bookmarked, refreshStatusOnMount, user?.id])
+
+  return { isBookmarked, isSubmitting, handleBookmark }
+}
+
+export default function EventBookmark({
+  event,
+  refreshStatusOnMount = true,
+}: EventBookmarkProps) {
+  const { isBookmarked, isSubmitting, handleBookmark } = useBookmarkState({
+    event,
+    refreshStatusOnMount,
+  })
 
   return (
     <Button
