@@ -38,6 +38,64 @@ interface CommentItemProps {
   retryLoadReplies: (commentId: string) => void
 }
 
+function useCommentItemHandlers({
+  comment,
+  user,
+  replyingTo,
+  onSetReplyingTo,
+  onSetReplyText,
+  onLikeToggle,
+  onDelete,
+}: {
+  comment: Comment
+  user: any
+  replyingTo: string | null
+  onSetReplyingTo: (id: string | null) => void
+  onSetReplyText: (text: string) => void
+  onLikeToggle: (commentId: string) => void
+  onDelete: (commentId: string) => void
+}) {
+  const { open } = useAppKit()
+
+  const handleReplyClick = useCallback(function handleReplyClick() {
+    if (!user) {
+      queueMicrotask(() => open())
+      return
+    }
+    const shouldOpen = replyingTo !== comment.id
+    onSetReplyingTo(shouldOpen ? comment.id : null)
+    if (shouldOpen) {
+      onSetReplyText('')
+    }
+  }, [user, comment, replyingTo, onSetReplyingTo, onSetReplyText, open])
+
+  const handleLikeToggle = useCallback(function handleLikeToggle() {
+    onLikeToggle(comment.id)
+  }, [comment.id, onLikeToggle])
+
+  const handleDelete = useCallback(function handleDelete() {
+    onDelete(comment.id)
+  }, [comment.id, onDelete])
+
+  const handleReplyAdded = useCallback(function handleReplyAdded() {
+    onSetReplyingTo(null)
+    onSetReplyText('')
+  }, [onSetReplyingTo, onSetReplyText])
+
+  const handleReplyCancel = useCallback(function handleReplyCancel() {
+    onSetReplyingTo(null)
+    onSetReplyText('')
+  }, [onSetReplyingTo, onSetReplyText])
+
+  return {
+    handleReplyClick,
+    handleLikeToggle,
+    handleDelete,
+    handleReplyAdded,
+    handleReplyCancel,
+  }
+}
+
 export default function EventCommentItem({
   comment,
   user,
@@ -61,39 +119,23 @@ export default function EventCommentItem({
   loadRepliesError,
   retryLoadReplies,
 }: CommentItemProps) {
-  const { open } = useAppKit()
   const { displayName, profileSlug } = resolveCommentUserIdentity(comment)
   const t = useExtracted()
-
-  const handleReplyClick = useCallback(() => {
-    if (!user) {
-      queueMicrotask(() => open())
-      return
-    }
-    const shouldOpen = replyingTo !== comment.id
-    onSetReplyingTo(shouldOpen ? comment.id : null)
-    if (shouldOpen) {
-      onSetReplyText('')
-    }
-  }, [user, comment, replyingTo, onSetReplyingTo, onSetReplyText, open])
-
-  const handleLikeToggle = useCallback(() => {
-    onLikeToggle(comment.id)
-  }, [comment.id, onLikeToggle])
-
-  const handleDelete = useCallback(() => {
-    onDelete(comment.id)
-  }, [comment.id, onDelete])
-
-  const handleReplyAdded = useCallback(() => {
-    onSetReplyingTo(null)
-    onSetReplyText('')
-  }, [onSetReplyingTo, onSetReplyText])
-
-  const handleReplyCancel = useCallback(() => {
-    onSetReplyingTo(null)
-    onSetReplyText('')
-  }, [onSetReplyingTo, onSetReplyText])
+  const {
+    handleReplyClick,
+    handleLikeToggle,
+    handleDelete,
+    handleReplyAdded,
+    handleReplyCancel,
+  } = useCommentItemHandlers({
+    comment,
+    user,
+    replyingTo,
+    onSetReplyingTo,
+    onSetReplyText,
+    onLikeToggle,
+    onDelete,
+  })
 
   return (
     <div className="comment-item">
