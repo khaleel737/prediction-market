@@ -7,7 +7,7 @@ import type {
 } from '@/app/[locale]/(platform)/event/[slug]/_types/EventOrderBookTypes'
 import type { Market } from '@/types'
 import { useQueryClient } from '@tanstack/react-query'
-import { createContext, use, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createWebSocketReconnectController } from '@/lib/websocket-reconnect'
 
 type MarketChannelStatus = 'connecting' | 'live' | 'offline'
@@ -223,10 +223,10 @@ function useMarketChannelConnection({
   const [connectionStatus, setConnectionStatus] = useState<MarketChannelStatus>('connecting')
   const listenersRef = useRef(new Set<MarketChannelListener>())
 
-  function subscribe(listener: MarketChannelListener) {
+  const subscribe = useCallback(function subscribeToMarketChannelListeners(listener: MarketChannelListener) {
     listenersRef.current.add(listener)
     return () => listenersRef.current.delete(listener)
-  }
+  }, [])
 
   useEffect(function establishMarketChannelConnection() {
     if (!hasMarketChannel) {
@@ -407,17 +407,14 @@ export function useMarketChannelSubscription(listener: MarketChannelListener) {
   }
   useEffect(function subscribeToMarketChannel() {
     return context.subscribe(listener)
-  }, [context, listener])
+  }, [context.subscribe, listener])
 }
 
 export function useOptionalMarketChannelSubscription(listener: MarketChannelListener) {
   const context = use(MarketChannelContext)
   useEffect(function subscribeToOptionalMarketChannel() {
-    if (!context) {
-      return
-    }
-    return context.subscribe(listener)
-  }, [context, listener])
+    return context?.subscribe(listener)
+  }, [context?.subscribe, listener])
 }
 
 export default EventMarketChannelProvider
