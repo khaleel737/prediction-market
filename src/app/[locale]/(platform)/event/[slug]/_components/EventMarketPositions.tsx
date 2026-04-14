@@ -776,7 +776,7 @@ function NetPositionsDialog({
                           src={row.iconUrl}
                           alt={row.outcomeLabel}
                           sizes="36px"
-                          containerClassName="size-9 rounded-md"
+                          containerClassName="size-9 shrink-0 rounded-md"
                         />
                       )
                     : (
