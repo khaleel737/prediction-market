@@ -166,135 +166,74 @@ function getHydratedServerSnapshot() {
   return false
 }
 
-export default function EventOrderPanelForm({
-  event,
-  isMobile,
-  initialMarket = null,
-  initialOutcome = null,
-  desktopMarketInfo,
-  mobileMarketInfo,
-  primaryOutcomeIndex = null,
-  oddsFormat = 'price',
-  outcomeButtonStyleVariant = 'default',
-  outcomeLabelOverrides = {},
-  outcomeAccentOverrides = {},
-  optimisticallyClaimedConditionIds = {},
-}: EventOrderPanelFormProps) {
-  const { open } = useAppKit()
-  const { isConnected } = useAppKitAccount()
-  const { signTypedDataAsync } = useSignTypedData()
-  const { signMessageAsync } = useSignMessage()
-  const { runWithSignaturePrompt } = useSignaturePromptRunner()
-  const t = useExtracted()
-  const locale = useLocale()
-  const currentTimestamp = useCurrentTimestamp({ intervalMs: 60_000 })
-  const normalizeOutcomeLabel = useOutcomeLabel()
-  const user = useUser()
-  const addLocalOrderFillNotification = useNotifications(state => state.addLocalOrderFillNotification)
-  const state = useOrder()
-  const setUserShares = useOrder(store => store.setUserShares)
-  const queryClient = useQueryClient()
-  const liveYesPrice = useYesPrice()
-  const liveNoPrice = useNoPrice()
-  const hasMatchingStoreEvent = state.event?.id === event.id
-  const hasMatchingStoreMarket = Boolean(
-    state.market
-    && event.markets.some(market => market.condition_id === state.market?.condition_id),
-  )
-  const activeEvent: Event = hasMatchingStoreEvent && state.event ? state.event : event
-  const activeMarket = hasMatchingStoreMarket ? state.market : initialMarket
-  const fallbackOutcome = useMemo(() => {
-    if (initialOutcome) {
-      return initialOutcome
-    }
-    return activeMarket?.outcomes[0] ?? null
-  }, [activeMarket, initialOutcome])
-  const hasMatchingStoreOutcome = Boolean(
-    state.outcome
-    && activeMarket
-    && state.outcome.condition_id === activeMarket.condition_id,
-  )
-  const activeOutcome = hasMatchingStoreOutcome ? state.outcome : fallbackOutcome
-  const isSingleMarket = activeEvent.total_markets_count === 1
-  const amountNumber = useAmountAsNumber()
-  const isLimitOrder = useIsLimitOrder()
-  const shouldShowEarnings = amountNumber > 0
-  const [showMarketMinimumWarning, setShowMarketMinimumWarning] = useState(false)
-  const [showInsufficientSharesWarning, setShowInsufficientSharesWarning] = useState(false)
-  const [showInsufficientBalanceWarning, setShowInsufficientBalanceWarning] = useState(false)
-  const [showAmountTooLowWarning, setShowAmountTooLowWarning] = useState(false)
-  const [showNoLiquidityWarning, setShowNoLiquidityWarning] = useState(false)
-  const [shouldShakeInput, setShouldShakeInput] = useState(false)
-  const [shouldShakeLimitShares, setShouldShakeLimitShares] = useState(false)
-  const [isClaimSubmitting, setIsClaimSubmitting] = useState(false)
-  const [claimedConditionIdsByEvent, setClaimedConditionIdsByEvent] = useState<Record<string, Record<string, true>>>({})
-  const hasMounted = useSyncExternalStore(
-    subscribeToHydrationStore,
-    getHydratedClientSnapshot,
-    getHydratedServerSnapshot,
-  )
-  const limitSharesInputRef = useRef<HTMLInputElement | null>(null)
-  const limitSharesNumber = Number.parseFloat(state.limitShares) || 0
-  const { balance, isLoadingBalance } = useBalance()
-  const yesOutcome = useMemo(
-    () => resolveMarketOutcome(activeMarket, OUTCOME_INDEX.YES),
-    [activeMarket],
-  )
-  const noOutcome = useMemo(
-    () => resolveMarketOutcome(activeMarket, OUTCOME_INDEX.NO),
-    [activeMarket],
-  )
-  const activeLiveYesPrice = hasMatchingStoreMarket ? liveYesPrice : null
-  const activeLiveNoPrice = hasMatchingStoreMarket ? liveNoPrice : null
-  const yesPrice = activeLiveYesPrice ?? resolveFallbackOutcomeUnitPrice(activeMarket, yesOutcome)
-  const noPrice = activeLiveNoPrice ?? resolveFallbackOutcomeUnitPrice(activeMarket, noOutcome)
-  const outcomeTokenId = activeOutcome?.token_id ? String(activeOutcome.token_id) : null
-  const shouldLoadOrderBookSummary = Boolean(
-    outcomeTokenId
-    && (state.type === ORDER_TYPE.MARKET
-      || (state.type === ORDER_TYPE.LIMIT && Number.parseFloat(state.limitPrice || '0') > 0)),
-  )
-  const orderBookSummaryQuery = useOrderBookSummaries(
-    outcomeTokenId ? [outcomeTokenId] : [],
-    { enabled: shouldLoadOrderBookSummary },
-  )
-  const affiliateMetadata = useAffiliateOrderMetadata()
-  const { ensureTradingReady, openTradeRequirements, startDepositFlow } = useTradingOnboarding()
-  const hasDeployedProxyWallet = Boolean(user?.proxy_wallet_address && user?.proxy_wallet_status === 'deployed')
-  const proxyWalletAddress = hasDeployedProxyWallet ? normalizeAddress(user?.proxy_wallet_address) : null
-  const userAddress = normalizeAddress(user?.address)
-  const makerAddress = proxyWalletAddress ?? userAddress ?? null
-  const signatureType = proxyWalletAddress ? 2 : 0
-  const { sharesByCondition } = useUserShareBalances({ event, ownerAddress: makerAddress })
-  const { openOrdersQueryKey, openSellSharesByCondition } = useEventOrderPanelOpenOrders({
-    userId: user?.id,
-    eventSlug: event.slug,
-    conditionId: activeMarket?.condition_id,
-  })
-  const eventOpenOrdersQueryKey = useMemo(
-    () => buildUserOpenOrdersQueryKey(user?.id, event.slug),
-    [event.slug, user?.id],
-  )
-  const isNegRiskEnabled = Boolean(event.enable_neg_risk)
-  const isNegRiskMarket = typeof activeMarket?.neg_risk === 'boolean'
-    ? activeMarket.neg_risk
-    : Boolean(event.enable_neg_risk || event.neg_risk)
+type ConditionSharesMap = Record<string, Record<typeof OUTCOME_INDEX.YES | typeof OUTCOME_INDEX.NO, number>>
 
-  const resolveDisplayOutcomeLabel = useCallback((
+function useUserSharesStoreSync({
+  makerAddress,
+  sharesByCondition,
+  aggregatedPositionShares,
+  setUserShares,
+}: {
+  makerAddress: string | null
+  sharesByCondition: ConditionSharesMap
+  aggregatedPositionShares: ConditionSharesMap | null | undefined
+  setUserShares: (shares: ConditionSharesMap, options: { replace: boolean }) => void
+}) {
+  const mergedSharesByCondition = useMemo(() => {
+    const merged: ConditionSharesMap = {}
+    const keys = new Set([
+      ...Object.keys(sharesByCondition),
+      ...Object.keys(aggregatedPositionShares ?? {}),
+    ])
+
+    keys.forEach((conditionId) => {
+      merged[conditionId] = {
+        [OUTCOME_INDEX.YES]: Math.max(
+          sharesByCondition[conditionId]?.[OUTCOME_INDEX.YES] ?? 0,
+          aggregatedPositionShares?.[conditionId]?.[OUTCOME_INDEX.YES] ?? 0,
+        ),
+        [OUTCOME_INDEX.NO]: Math.max(
+          sharesByCondition[conditionId]?.[OUTCOME_INDEX.NO] ?? 0,
+          aggregatedPositionShares?.[conditionId]?.[OUTCOME_INDEX.NO] ?? 0,
+        ),
+      }
+    })
+
+    return merged
+  }, [aggregatedPositionShares, sharesByCondition])
+
+  useEffect(function syncMergedUserSharesToStore() {
+    if (!makerAddress) {
+      setUserShares({}, { replace: true })
+      return
+    }
+
+    if (!Object.keys(mergedSharesByCondition).length) {
+      setUserShares({}, { replace: true })
+      return
+    }
+
+    setUserShares(mergedSharesByCondition, { replace: true })
+  }, [makerAddress, mergedSharesByCondition, setUserShares])
+}
+
+function useResolvedMarketDisplay({
+  event,
+  activeMarket,
+  currentTimestamp,
+  resolveDisplayOutcomeLabel,
+  t,
+}: {
+  event: Event
+  activeMarket: Market | null | undefined
+  currentTimestamp: number | null
+  resolveDisplayOutcomeLabel: (
     outcomeIndex: number | null | undefined,
     outcomeText: string | null | undefined,
     fallbackLabel: string,
-  ) => {
-    const override = outcomeIndex == null
-      ? ''
-      : (outcomeLabelOverrides[outcomeIndex]?.trim() ?? '')
-    if (override) {
-      return override
-    }
-
-    const normalized = outcomeText ? normalizeOutcomeLabel(outcomeText) : ''
-    return normalized || outcomeText || fallbackLabel
-  }, [normalizeOutcomeLabel, outcomeLabelOverrides])
+  ) => string
+  t: ReturnType<typeof useExtracted>
+}) {
   const isResolvedMarket = Boolean(activeMarket?.is_resolved || activeMarket?.condition?.resolved)
   const isTweetMarketEvent = useMemo(
     () => isTweetMarketsEvent(event),
@@ -421,40 +360,66 @@ export default function EventOrderPanelForm({
   ?? activeMarket?.outcomes.find(outcome => outcome.outcome_index === OUTCOME_INDEX.NO)?.outcome_text
   const resolvedYesOutcomeLabel = resolveDisplayOutcomeLabel(OUTCOME_INDEX.YES, resolvedYesOutcomeText, t('Yes'))
   const resolvedNoOutcomeLabel = resolveDisplayOutcomeLabel(OUTCOME_INDEX.NO, resolvedNoOutcomeText, t('No'))
-  const orderDomain = useMemo(() => getExchangeEip712Domain(isNegRiskEnabled), [isNegRiskEnabled])
-  const [showLimitMinimumWarning, setShowLimitMinimumWarning] = useState(false)
-  const { positionsQuery, aggregatedPositionShares } = useEventOrderPanelPositions({
-    makerAddress,
-    conditionId: activeMarket?.condition_id,
-  })
 
-  const claimedConditionIds = claimedConditionIdsByEvent[event.id] ?? {}
+  return {
+    isResolvedMarket,
+    resolvedOutcomeIndex,
+    resolvedOutcomeLabel,
+    shouldShowResolvedSportsSubtitle,
+    resolvedMarketTitle,
+    resolvedYesOutcomeLabel,
+    resolvedNoOutcomeLabel,
+  }
+}
 
+function useOrderBookComputations({
+  outcomeTokenId,
+  orderBookSummaryData,
+  side,
+  type,
+  amount,
+  limitPrice,
+  limitShares,
+  isLimitOrder,
+  amountNumber,
+  outcomeFallbackBuyPriceCents,
+}: {
+  outcomeTokenId: string | null
+  orderBookSummaryData: ReturnType<typeof useOrderBookSummaries>['data']
+  side: typeof ORDER_SIDE.BUY | typeof ORDER_SIDE.SELL
+  type: typeof ORDER_TYPE.MARKET | typeof ORDER_TYPE.LIMIT
+  amount: string
+  limitPrice: string
+  limitShares: string
+  isLimitOrder: boolean
+  amountNumber: number
+  outcomeFallbackBuyPriceCents: number | null
+}) {
   const normalizedOrderBook = useMemo(() => {
-    const summary = outcomeTokenId ? orderBookSummaryQuery.data?.[outcomeTokenId] : undefined
+    const summary = outcomeTokenId ? orderBookSummaryData?.[outcomeTokenId] : undefined
     return {
       bids: normalizeBookLevels(summary?.bids, 'bid'),
       asks: normalizeBookLevels(summary?.asks, 'ask'),
     }
-  }, [orderBookSummaryQuery.data, outcomeTokenId])
+  }, [orderBookSummaryData, outcomeTokenId])
   const limitMatchingShares = useMemo(() => {
     if (!isLimitOrder) {
       return null
     }
 
-    const limitPriceValue = Number.parseFloat(state.limitPrice || '0') || 0
-    const limitSharesValue = Number.parseFloat(state.limitShares || '0') || 0
+    const limitPriceValue = Number.parseFloat(limitPrice || '0') || 0
+    const limitSharesValue = Number.parseFloat(limitShares || '0') || 0
     if (limitPriceValue <= 0 || limitSharesValue <= 0) {
       return null
     }
 
-    const levels = state.side === ORDER_SIDE.BUY ? normalizedOrderBook.asks : normalizedOrderBook.bids
+    const levels = side === ORDER_SIDE.BUY ? normalizedOrderBook.asks : normalizedOrderBook.bids
     if (!levels.length) {
       return null
     }
 
     const availableShares = levels.reduce((total, level) => {
-      if (state.side === ORDER_SIDE.BUY ? level.priceCents <= limitPriceValue : level.priceCents >= limitPriceValue) {
+      if (side === ORDER_SIDE.BUY ? level.priceCents <= limitPriceValue : level.priceCents >= limitPriceValue) {
         return total + level.size
       }
       return total
@@ -465,96 +430,158 @@ export default function EventOrderPanelForm({
     isLimitOrder,
     normalizedOrderBook.asks,
     normalizedOrderBook.bids,
-    state.limitPrice,
-    state.limitShares,
-    state.side,
+    limitPrice,
+    limitShares,
+    side,
   ])
+  const marketSellFill = useMemo(() => {
+    if (side !== ORDER_SIDE.SELL || isLimitOrder) {
+      return null
+    }
 
-  const availableBalanceForOrders = Math.max(0, balance.raw)
-  const formattedBalanceText = Number.isFinite(balance.raw)
-    ? balance.raw.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '0.00'
+    return calculateMarketFill(
+      ORDER_SIDE.SELL,
+      amountNumber,
+      normalizedOrderBook.bids,
+      normalizedOrderBook.asks,
+    )
+  }, [amountNumber, isLimitOrder, normalizedOrderBook.asks, normalizedOrderBook.bids, side])
+  const marketBuyFill = useMemo(() => {
+    if (side !== ORDER_SIDE.BUY || isLimitOrder) {
+      return null
+    }
 
-  const mergedSharesByCondition = useMemo(() => {
-    const merged: Record<string, Record<typeof OUTCOME_INDEX.YES | typeof OUTCOME_INDEX.NO, number>> = {}
-    const keys = new Set([
-      ...Object.keys(sharesByCondition),
-      ...Object.keys(aggregatedPositionShares ?? {}),
-    ])
+    return calculateMarketFill(
+      ORDER_SIDE.BUY,
+      amountNumber,
+      normalizedOrderBook.bids,
+      normalizedOrderBook.asks,
+    )
+  }, [amountNumber, isLimitOrder, normalizedOrderBook.asks, normalizedOrderBook.bids, side])
+  const sellOrderSnapshot = useMemo(() => {
+    if (side !== ORDER_SIDE.SELL) {
+      return { shares: 0, priceCents: 0, totalValue: 0 }
+    }
 
-    keys.forEach((conditionId) => {
-      merged[conditionId] = {
-        [OUTCOME_INDEX.YES]: Math.max(
-          sharesByCondition[conditionId]?.[OUTCOME_INDEX.YES] ?? 0,
-          aggregatedPositionShares?.[conditionId]?.[OUTCOME_INDEX.YES] ?? 0,
-        ),
-        [OUTCOME_INDEX.NO]: Math.max(
-          sharesByCondition[conditionId]?.[OUTCOME_INDEX.NO] ?? 0,
-          aggregatedPositionShares?.[conditionId]?.[OUTCOME_INDEX.NO] ?? 0,
-        ),
+    const isLimit = type === ORDER_TYPE.LIMIT
+    const sharesInput = isLimit
+      ? Number.parseFloat(limitShares || '0') || 0
+      : Number.parseFloat(amount || '0') || 0
+
+    const limitPriceNumber = isLimit
+      ? Number.parseFloat(limitPrice || '0') || 0
+      : null
+
+    if (isLimit) {
+      const totalValue = sharesInput > 0 && limitPriceNumber && limitPriceNumber > 0 ? (sharesInput * limitPriceNumber) / 100 : 0
+      return {
+        shares: sharesInput,
+        priceCents: limitPriceNumber ?? 0,
+        totalValue,
       }
-    })
-
-    return merged
-  }, [aggregatedPositionShares, sharesByCondition])
-
-  useEffect(() => {
-    if (!makerAddress) {
-      setUserShares({}, { replace: true })
-      return
     }
 
-    if (!Object.keys(mergedSharesByCondition).length) {
-      setUserShares({}, { replace: true })
-      return
+    const fill = marketSellFill
+    const effectivePriceCents = fill?.avgPriceCents ?? null
+    const filledShares = fill?.filledShares ?? sharesInput
+    const totalValue = fill?.totalCost ?? 0
+
+    return {
+      shares: filledShares,
+      priceCents: effectivePriceCents ?? Number.NaN,
+      totalValue,
+    }
+  }, [marketSellFill, amount, limitPrice, limitShares, side, type])
+  const currentBuyPriceCents = (() => {
+    if (isLimitOrder && side === ORDER_SIDE.BUY) {
+      return Number.parseFloat(limitPrice || '0') || 0
     }
 
-    setUserShares(mergedSharesByCondition, { replace: true })
-  }, [makerAddress, mergedSharesByCondition, setUserShares])
+    if (!isLimitOrder && side === ORDER_SIDE.BUY) {
+      return marketBuyFill?.avgPriceCents ?? null
+    }
 
-  const conditionTokenShares = activeMarket ? state.userShares[activeMarket.condition_id] : undefined
-  const conditionPositionShares = activeMarket ? aggregatedPositionShares?.[activeMarket.condition_id] : undefined
-  const yesTokenShares = conditionTokenShares?.[OUTCOME_INDEX.YES] ?? 0
-  const noTokenShares = conditionTokenShares?.[OUTCOME_INDEX.NO] ?? 0
-  const yesPositionShares = conditionPositionShares?.[OUTCOME_INDEX.YES] ?? 0
-  const noPositionShares = conditionPositionShares?.[OUTCOME_INDEX.NO] ?? 0
-  const lockedYesShares = activeMarket ? openSellSharesByCondition[activeMarket.condition_id]?.[OUTCOME_INDEX.YES] ?? 0 : 0
-  const lockedNoShares = activeMarket ? openSellSharesByCondition[activeMarket.condition_id]?.[OUTCOME_INDEX.NO] ?? 0 : 0
-  const availableYesTokenShares = Math.max(0, yesTokenShares - lockedYesShares)
-  const availableNoTokenShares = Math.max(0, noTokenShares - lockedNoShares)
-  const availableYesPositionShares = Math.max(0, yesPositionShares - lockedYesShares)
-  const availableNoPositionShares = Math.max(0, noPositionShares - lockedNoShares)
-  const mergeableYesShares = Math.max(availableYesTokenShares, availableYesPositionShares)
-  const mergeableNoShares = Math.max(availableNoTokenShares, availableNoPositionShares)
-  const availableMergeShares = Math.max(0, Math.min(mergeableYesShares, mergeableNoShares))
-  const availableSplitBalance = Math.max(0, balance.raw)
-  const outcomeIndex = activeOutcome?.outcome_index as typeof OUTCOME_INDEX.YES | typeof OUTCOME_INDEX.NO | undefined
-  const selectedTokenShares = outcomeIndex === undefined
-    ? 0
-    : outcomeIndex === OUTCOME_INDEX.YES
-      ? availableYesTokenShares
-      : availableNoTokenShares
-  const selectedPositionShares = outcomeIndex === undefined
-    ? 0
-    : outcomeIndex === OUTCOME_INDEX.YES
-      ? availableYesPositionShares
-      : availableNoPositionShares
-  const selectedShares = state.side === ORDER_SIDE.SELL
-    ? (isLimitOrder ? selectedTokenShares : selectedPositionShares)
-    : selectedTokenShares
-  const selectedShareLabel = outcomeIndex === undefined
-    ? undefined
-    : resolveDisplayOutcomeLabel(
-        outcomeIndex,
-        activeOutcome?.outcome_text,
-        outcomeIndex === OUTCOME_INDEX.NO ? t('No') : t('Yes'),
-      )
+    return outcomeFallbackBuyPriceCents
+  })()
+  const buyPayoutSummary = useMemo(() => {
+    if (side !== ORDER_SIDE.BUY) {
+      return {
+        payout: 0,
+        cost: 0,
+        profit: 0,
+        changePct: 0,
+        multiplier: 0,
+      }
+    }
+
+    if (isLimitOrder) {
+      const price = Number.parseFloat(limitPrice || '0') / 100
+      const shares = Number.parseFloat(limitShares || '0') || 0
+      const cost = price > 0 ? shares * price : 0
+      const payout = shares
+      const profit = payout - cost
+      const changePct = cost > 0 ? (profit / cost) * 100 : 0
+      const multiplier = cost > 0 ? payout / cost : 0
+      return { payout, cost, profit, changePct, multiplier }
+    }
+
+    const avgPrice = marketBuyFill?.avgPriceCents != null ? marketBuyFill.avgPriceCents / 100 : (currentBuyPriceCents ?? 0) / 100
+    const cost = marketBuyFill?.totalCost ?? amountNumber
+    const payout = marketBuyFill?.filledShares && marketBuyFill.filledShares > 0
+      ? marketBuyFill.filledShares
+      : (avgPrice > 0 ? amountNumber / avgPrice : 0)
+    const profit = payout - cost
+    const changePct = cost > 0 ? (profit / cost) * 100 : 0
+    const multiplier = cost > 0 ? payout / cost : 0
+
+    return { payout, cost, profit, changePct, multiplier }
+  }, [amountNumber, currentBuyPriceCents, isLimitOrder, marketBuyFill, limitPrice, limitShares, side])
+
+  return {
+    limitMatchingShares,
+    marketSellFill,
+    marketBuyFill,
+    sellOrderSnapshot,
+    currentBuyPriceCents,
+    buyPayoutSummary,
+  }
+}
+
+type ResolveDisplayOutcomeLabel = (
+  outcomeIndex: number | null | undefined,
+  outcomeText: string | null | undefined,
+  fallbackLabel: string,
+) => string
+
+function useClaimablePositions({
+  activeMarket,
+  isResolvedMarket,
+  positionsQueryData,
+  resolvedOutcomeIndex,
+  resolvedOutcomeLabel,
+  resolvedYesOutcomeLabel,
+  resolvedNoOutcomeLabel,
+  resolveDisplayOutcomeLabel,
+  yesPositionShares,
+  noPositionShares,
+}: {
+  activeMarket: Market | null | undefined
+  isResolvedMarket: boolean
+  positionsQueryData: UserPosition[] | undefined
+  resolvedOutcomeIndex: number | null
+  resolvedOutcomeLabel: string | null
+  resolvedYesOutcomeLabel: string
+  resolvedNoOutcomeLabel: string
+  resolveDisplayOutcomeLabel: ResolveDisplayOutcomeLabel
+  yesPositionShares: number
+  noPositionShares: number
+}) {
   const claimablePositionsForMarket = useMemo(() => {
     if (!isResolvedMarket || !activeMarket?.condition_id) {
       return []
     }
 
-    const positions = positionsQuery.data ?? []
+    const positions = positionsQueryData ?? []
     return positions.filter((position) => {
       if (!position.redeemable || position.market?.condition_id !== activeMarket?.condition_id) {
         return false
@@ -562,7 +589,7 @@ export default function EventOrderPanelForm({
       const shares = typeof position.total_shares === 'number' ? position.total_shares : 0
       return shares > 0
     })
-  }, [activeMarket?.condition_id, isResolvedMarket, positionsQuery.data])
+  }, [activeMarket?.condition_id, isResolvedMarket, positionsQueryData])
   const claimableShares = useMemo(
     () =>
       claimablePositionsForMarket.reduce((sum, position) => {
@@ -609,17 +636,6 @@ export default function EventOrderPanelForm({
 
     return Array.from(indexSetCollection).sort((a, b) => a - b)
   }, [claimablePositionsForMarket, resolvedOutcomeIndex])
-  const hasSubmittedClaimForMarket = Boolean(
-    activeMarket?.condition_id
-    && (
-      claimedConditionIds[activeMarket.condition_id]
-      || optimisticallyClaimedConditionIds[activeMarket.condition_id]
-    ),
-  )
-  const hasClaimableWinnings = Boolean(activeMarket?.condition_id)
-    && claimableShares > 0
-    && claimIndexSets.length > 0
-    && !hasSubmittedClaimForMarket
   const claimOutcomeLabel = useMemo(() => {
     const position = claimablePositionsForMarket.find(candidate => candidate.outcome_text || candidate.outcome_index != null)
     return resolveDisplayOutcomeLabel(
@@ -693,70 +709,333 @@ export default function EventOrderPanelForm({
     return formatCurrency(1)
   }, [hasYesAndNoPosition, noPositionShares, resolvedOutcomeIndex, yesPositionShares])
   const claimTotalLabel = useMemo(() => formatCurrency(claimableShares), [claimableShares])
+
+  return {
+    claimableShares,
+    claimableNegRiskAmounts,
+    claimIndexSets,
+    claimPositionLabel,
+    claimValuePerShareLabel,
+    claimTotalLabel,
+  }
+}
+
+function useOrderValidationFeedback() {
+  const [showMarketMinimumWarning, setShowMarketMinimumWarning] = useState(false)
+  const [showInsufficientSharesWarning, setShowInsufficientSharesWarning] = useState(false)
+  const [showInsufficientBalanceWarning, setShowInsufficientBalanceWarning] = useState(false)
+  const [showAmountTooLowWarning, setShowAmountTooLowWarning] = useState(false)
+  const [showNoLiquidityWarning, setShowNoLiquidityWarning] = useState(false)
+  const [showLimitMinimumWarning, setShowLimitMinimumWarning] = useState(false)
+  const [shouldShakeInput, setShouldShakeInput] = useState(false)
+  const [shouldShakeLimitShares, setShouldShakeLimitShares] = useState(false)
+
+  function clearValidationWarnings() {
+    setShowMarketMinimumWarning(false)
+    setShowInsufficientSharesWarning(false)
+    setShowInsufficientBalanceWarning(false)
+    setShowAmountTooLowWarning(false)
+    setShowNoLiquidityWarning(false)
+  }
+
+  function clearValidationFeedback() {
+    clearValidationWarnings()
+    setShouldShakeInput(false)
+    setShouldShakeLimitShares(false)
+  }
+
+  return {
+    showMarketMinimumWarning,
+    setShowMarketMinimumWarning,
+    showInsufficientSharesWarning,
+    setShowInsufficientSharesWarning,
+    showInsufficientBalanceWarning,
+    setShowInsufficientBalanceWarning,
+    showAmountTooLowWarning,
+    setShowAmountTooLowWarning,
+    showNoLiquidityWarning,
+    setShowNoLiquidityWarning,
+    showLimitMinimumWarning,
+    setShowLimitMinimumWarning,
+    shouldShakeInput,
+    setShouldShakeInput,
+    shouldShakeLimitShares,
+    setShouldShakeLimitShares,
+    clearValidationWarnings,
+    clearValidationFeedback,
+  }
+}
+
+export default function EventOrderPanelForm({
+  event,
+  isMobile,
+  initialMarket = null,
+  initialOutcome = null,
+  desktopMarketInfo,
+  mobileMarketInfo,
+  primaryOutcomeIndex = null,
+  oddsFormat = 'price',
+  outcomeButtonStyleVariant = 'default',
+  outcomeLabelOverrides = {},
+  outcomeAccentOverrides = {},
+  optimisticallyClaimedConditionIds = {},
+}: EventOrderPanelFormProps) {
+  const { open } = useAppKit()
+  const { isConnected } = useAppKitAccount()
+  const { signTypedDataAsync } = useSignTypedData()
+  const { signMessageAsync } = useSignMessage()
+  const { runWithSignaturePrompt } = useSignaturePromptRunner()
+  const t = useExtracted()
+  const locale = useLocale()
+  const currentTimestamp = useCurrentTimestamp({ intervalMs: 60_000 })
+  const normalizeOutcomeLabel = useOutcomeLabel()
+  const user = useUser()
+  const addLocalOrderFillNotification = useNotifications(state => state.addLocalOrderFillNotification)
+  const state = useOrder()
+  const setUserShares = useOrder(store => store.setUserShares)
+  const queryClient = useQueryClient()
+  const liveYesPrice = useYesPrice()
+  const liveNoPrice = useNoPrice()
+  const hasMatchingStoreEvent = state.event?.id === event.id
+  const hasMatchingStoreMarket = Boolean(
+    state.market
+    && event.markets.some(market => market.condition_id === state.market?.condition_id),
+  )
+  const activeEvent: Event = hasMatchingStoreEvent && state.event ? state.event : event
+  const activeMarket = hasMatchingStoreMarket ? state.market : initialMarket
+  const fallbackOutcome = useMemo(() => {
+    if (initialOutcome) {
+      return initialOutcome
+    }
+    return activeMarket?.outcomes[0] ?? null
+  }, [activeMarket, initialOutcome])
+  const hasMatchingStoreOutcome = Boolean(
+    state.outcome
+    && activeMarket
+    && state.outcome.condition_id === activeMarket.condition_id,
+  )
+  const activeOutcome = hasMatchingStoreOutcome ? state.outcome : fallbackOutcome
+  const isSingleMarket = activeEvent.total_markets_count === 1
+  const amountNumber = useAmountAsNumber()
+  const isLimitOrder = useIsLimitOrder()
+  const shouldShowEarnings = amountNumber > 0
+  const {
+    showMarketMinimumWarning,
+    setShowMarketMinimumWarning,
+    showInsufficientSharesWarning,
+    setShowInsufficientSharesWarning,
+    showInsufficientBalanceWarning,
+    setShowInsufficientBalanceWarning,
+    showAmountTooLowWarning,
+    setShowAmountTooLowWarning,
+    showNoLiquidityWarning,
+    setShowNoLiquidityWarning,
+    showLimitMinimumWarning,
+    setShowLimitMinimumWarning,
+    shouldShakeInput,
+    setShouldShakeInput,
+    shouldShakeLimitShares,
+    setShouldShakeLimitShares,
+    clearValidationFeedback,
+  } = useOrderValidationFeedback()
+  const [isClaimSubmitting, setIsClaimSubmitting] = useState(false)
+  const [claimedConditionIdsByEvent, setClaimedConditionIdsByEvent] = useState<Record<string, Record<string, true>>>({})
+  const hasMounted = useSyncExternalStore(
+    subscribeToHydrationStore,
+    getHydratedClientSnapshot,
+    getHydratedServerSnapshot,
+  )
+  const limitSharesInputRef = useRef<HTMLInputElement | null>(null)
+  const limitSharesNumber = Number.parseFloat(state.limitShares) || 0
+  const { balance, isLoadingBalance } = useBalance()
+  const yesOutcome = useMemo(
+    () => resolveMarketOutcome(activeMarket, OUTCOME_INDEX.YES),
+    [activeMarket],
+  )
+  const noOutcome = useMemo(
+    () => resolveMarketOutcome(activeMarket, OUTCOME_INDEX.NO),
+    [activeMarket],
+  )
+  const activeLiveYesPrice = hasMatchingStoreMarket ? liveYesPrice : null
+  const activeLiveNoPrice = hasMatchingStoreMarket ? liveNoPrice : null
+  const yesPrice = activeLiveYesPrice ?? resolveFallbackOutcomeUnitPrice(activeMarket, yesOutcome)
+  const noPrice = activeLiveNoPrice ?? resolveFallbackOutcomeUnitPrice(activeMarket, noOutcome)
+  const outcomeTokenId = activeOutcome?.token_id ? String(activeOutcome.token_id) : null
+  const shouldLoadOrderBookSummary = Boolean(
+    outcomeTokenId
+    && (state.type === ORDER_TYPE.MARKET
+      || (state.type === ORDER_TYPE.LIMIT && Number.parseFloat(state.limitPrice || '0') > 0)),
+  )
+  const orderBookSummaryQuery = useOrderBookSummaries(
+    outcomeTokenId ? [outcomeTokenId] : [],
+    { enabled: shouldLoadOrderBookSummary },
+  )
+  const affiliateMetadata = useAffiliateOrderMetadata()
+  const { ensureTradingReady, openTradeRequirements, startDepositFlow } = useTradingOnboarding()
+  const hasDeployedProxyWallet = Boolean(user?.proxy_wallet_address && user?.proxy_wallet_status === 'deployed')
+  const proxyWalletAddress = hasDeployedProxyWallet ? normalizeAddress(user?.proxy_wallet_address) : null
+  const userAddress = normalizeAddress(user?.address)
+  const makerAddress = proxyWalletAddress ?? userAddress ?? null
+  const signatureType = proxyWalletAddress ? 2 : 0
+  const { sharesByCondition } = useUserShareBalances({ event, ownerAddress: makerAddress })
+  const { openOrdersQueryKey, openSellSharesByCondition } = useEventOrderPanelOpenOrders({
+    userId: user?.id,
+    eventSlug: event.slug,
+    conditionId: activeMarket?.condition_id,
+  })
+  const eventOpenOrdersQueryKey = useMemo(
+    () => buildUserOpenOrdersQueryKey(user?.id, event.slug),
+    [event.slug, user?.id],
+  )
+  const isNegRiskEnabled = Boolean(event.enable_neg_risk)
+  const isNegRiskMarket = typeof activeMarket?.neg_risk === 'boolean'
+    ? activeMarket.neg_risk
+    : Boolean(event.enable_neg_risk || event.neg_risk)
+
+  const resolveDisplayOutcomeLabel = useCallback((
+    outcomeIndex: number | null | undefined,
+    outcomeText: string | null | undefined,
+    fallbackLabel: string,
+  ) => {
+    const override = outcomeIndex == null
+      ? ''
+      : (outcomeLabelOverrides[outcomeIndex]?.trim() ?? '')
+    if (override) {
+      return override
+    }
+
+    const normalized = outcomeText ? normalizeOutcomeLabel(outcomeText) : ''
+    return normalized || outcomeText || fallbackLabel
+  }, [normalizeOutcomeLabel, outcomeLabelOverrides])
+  const {
+    isResolvedMarket,
+    resolvedOutcomeIndex,
+    resolvedOutcomeLabel,
+    shouldShowResolvedSportsSubtitle,
+    resolvedMarketTitle,
+    resolvedYesOutcomeLabel,
+    resolvedNoOutcomeLabel,
+  } = useResolvedMarketDisplay({
+    event,
+    activeMarket,
+    currentTimestamp,
+    resolveDisplayOutcomeLabel,
+    t,
+  })
+  const orderDomain = useMemo(() => getExchangeEip712Domain(isNegRiskEnabled), [isNegRiskEnabled])
+  const { positionsQuery, aggregatedPositionShares } = useEventOrderPanelPositions({
+    makerAddress,
+    conditionId: activeMarket?.condition_id,
+  })
+
+  const claimedConditionIds = claimedConditionIdsByEvent[event.id] ?? {}
+
+  const availableBalanceForOrders = Math.max(0, balance.raw)
+  const formattedBalanceText = Number.isFinite(balance.raw)
+    ? balance.raw.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '0.00'
+
+  useUserSharesStoreSync({
+    makerAddress,
+    sharesByCondition,
+    aggregatedPositionShares,
+    setUserShares,
+  })
+
+  const conditionTokenShares = activeMarket ? state.userShares[activeMarket.condition_id] : undefined
+  const conditionPositionShares = activeMarket ? aggregatedPositionShares?.[activeMarket.condition_id] : undefined
+  const yesTokenShares = conditionTokenShares?.[OUTCOME_INDEX.YES] ?? 0
+  const noTokenShares = conditionTokenShares?.[OUTCOME_INDEX.NO] ?? 0
+  const yesPositionShares = conditionPositionShares?.[OUTCOME_INDEX.YES] ?? 0
+  const noPositionShares = conditionPositionShares?.[OUTCOME_INDEX.NO] ?? 0
+  const lockedYesShares = activeMarket ? openSellSharesByCondition[activeMarket.condition_id]?.[OUTCOME_INDEX.YES] ?? 0 : 0
+  const lockedNoShares = activeMarket ? openSellSharesByCondition[activeMarket.condition_id]?.[OUTCOME_INDEX.NO] ?? 0 : 0
+  const availableYesTokenShares = Math.max(0, yesTokenShares - lockedYesShares)
+  const availableNoTokenShares = Math.max(0, noTokenShares - lockedNoShares)
+  const availableYesPositionShares = Math.max(0, yesPositionShares - lockedYesShares)
+  const availableNoPositionShares = Math.max(0, noPositionShares - lockedNoShares)
+  const mergeableYesShares = Math.max(availableYesTokenShares, availableYesPositionShares)
+  const mergeableNoShares = Math.max(availableNoTokenShares, availableNoPositionShares)
+  const availableMergeShares = Math.max(0, Math.min(mergeableYesShares, mergeableNoShares))
+  const availableSplitBalance = Math.max(0, balance.raw)
+  const outcomeIndex = activeOutcome?.outcome_index as typeof OUTCOME_INDEX.YES | typeof OUTCOME_INDEX.NO | undefined
+  const selectedTokenShares = outcomeIndex === undefined
+    ? 0
+    : outcomeIndex === OUTCOME_INDEX.YES
+      ? availableYesTokenShares
+      : availableNoTokenShares
+  const selectedPositionShares = outcomeIndex === undefined
+    ? 0
+    : outcomeIndex === OUTCOME_INDEX.YES
+      ? availableYesPositionShares
+      : availableNoPositionShares
+  const selectedShares = state.side === ORDER_SIDE.SELL
+    ? (isLimitOrder ? selectedTokenShares : selectedPositionShares)
+    : selectedTokenShares
+  const selectedShareLabel = outcomeIndex === undefined
+    ? undefined
+    : resolveDisplayOutcomeLabel(
+        outcomeIndex,
+        activeOutcome?.outcome_text,
+        outcomeIndex === OUTCOME_INDEX.NO ? t('No') : t('Yes'),
+      )
+  const {
+    claimableShares,
+    claimableNegRiskAmounts,
+    claimIndexSets,
+    claimPositionLabel,
+    claimValuePerShareLabel,
+    claimTotalLabel,
+  } = useClaimablePositions({
+    activeMarket,
+    isResolvedMarket,
+    positionsQueryData: positionsQuery.data,
+    resolvedOutcomeIndex,
+    resolvedOutcomeLabel,
+    resolvedYesOutcomeLabel,
+    resolvedNoOutcomeLabel,
+    resolveDisplayOutcomeLabel,
+    yesPositionShares,
+    noPositionShares,
+  })
+  const hasSubmittedClaimForMarket = Boolean(
+    activeMarket?.condition_id
+    && (
+      claimedConditionIds[activeMarket.condition_id]
+      || optimisticallyClaimedConditionIds[activeMarket.condition_id]
+    ),
+  )
+  const hasClaimableWinnings = Boolean(activeMarket?.condition_id)
+    && claimableShares > 0
+    && claimIndexSets.length > 0
+    && !hasSubmittedClaimForMarket
   const selectedSubmitAccent = outcomeIndex === OUTCOME_INDEX.YES || outcomeIndex === OUTCOME_INDEX.NO
     ? (outcomeAccentOverrides[outcomeIndex] ?? null)
     : null
 
-  const marketSellFill = useMemo(() => {
-    if (state.side !== ORDER_SIDE.SELL || isLimitOrder) {
-      return null
-    }
+  const outcomeFallbackBuyPriceCents = typeof activeOutcome?.buy_price === 'number'
+    ? Number((activeOutcome.buy_price * 100).toFixed(1))
+    : null
 
-    return calculateMarketFill(
-      ORDER_SIDE.SELL,
-      amountNumber,
-      normalizedOrderBook.bids,
-      normalizedOrderBook.asks,
-    )
-  }, [amountNumber, isLimitOrder, normalizedOrderBook.asks, normalizedOrderBook.bids, state.side])
-
-  const marketBuyFill = useMemo(() => {
-    if (state.side !== ORDER_SIDE.BUY || isLimitOrder) {
-      return null
-    }
-
-    return calculateMarketFill(
-      ORDER_SIDE.BUY,
-      amountNumber,
-      normalizedOrderBook.bids,
-      normalizedOrderBook.asks,
-    )
-  }, [amountNumber, isLimitOrder, normalizedOrderBook.asks, normalizedOrderBook.bids, state.side])
-
-  const sellOrderSnapshot = useMemo(() => {
-    if (state.side !== ORDER_SIDE.SELL) {
-      return { shares: 0, priceCents: 0, totalValue: 0 }
-    }
-
-    const isLimit = state.type === ORDER_TYPE.LIMIT
-    const sharesInput = isLimit
-      ? Number.parseFloat(state.limitShares || '0') || 0
-      : Number.parseFloat(state.amount || '0') || 0
-
-    const limitPrice = isLimit
-      ? Number.parseFloat(state.limitPrice || '0') || 0
-      : null
-
-    if (isLimit) {
-      const totalValue = sharesInput > 0 && limitPrice && limitPrice > 0 ? (sharesInput * limitPrice) / 100 : 0
-      return {
-        shares: sharesInput,
-        priceCents: limitPrice ?? 0,
-        totalValue,
-      }
-    }
-
-    const fill = marketSellFill
-    const effectivePriceCents = fill?.avgPriceCents ?? null
-    const filledShares = fill?.filledShares ?? sharesInput
-    const totalValue = fill?.totalCost ?? 0
-
-    return {
-      shares: filledShares,
-      priceCents: effectivePriceCents ?? Number.NaN,
-      totalValue,
-    }
-  }, [marketSellFill, state.amount, state.limitPrice, state.limitShares, state.side, state.type])
+  const {
+    limitMatchingShares,
+    marketSellFill,
+    marketBuyFill,
+    sellOrderSnapshot,
+    currentBuyPriceCents,
+    buyPayoutSummary,
+  } = useOrderBookComputations({
+    outcomeTokenId,
+    orderBookSummaryData: orderBookSummaryQuery.data,
+    side: state.side,
+    type: state.type,
+    amount: state.amount,
+    limitPrice: state.limitPrice,
+    limitShares: state.limitShares,
+    isLimitOrder,
+    amountNumber,
+    outcomeFallbackBuyPriceCents,
+  })
 
   const sellAmountValue = state.side === ORDER_SIDE.SELL ? sellOrderSnapshot.totalValue : 0
 
@@ -764,20 +1043,6 @@ export default function EventOrderPanelForm({
     ? sellOrderSnapshot.priceCents / 100
     : null
   const avgSellPriceLabel = formatCentsLabel(avgSellPriceDollars, { fallback: '—' })
-  const outcomeFallbackBuyPriceCents = typeof activeOutcome?.buy_price === 'number'
-    ? Number((activeOutcome.buy_price * 100).toFixed(1))
-    : null
-  const currentBuyPriceCents = (() => {
-    if (isLimitOrder && state.side === ORDER_SIDE.BUY) {
-      return Number.parseFloat(state.limitPrice || '0') || 0
-    }
-
-    if (!isLimitOrder && state.side === ORDER_SIDE.BUY) {
-      return marketBuyFill?.avgPriceCents ?? null
-    }
-
-    return outcomeFallbackBuyPriceCents
-  })()
 
   const effectiveMarketBuyCost = state.side === ORDER_SIDE.BUY && state.type === ORDER_TYPE.MARKET
     ? (marketBuyFill?.totalCost ?? amountNumber)
@@ -787,40 +1052,6 @@ export default function EventOrderPanelForm({
     && state.side === ORDER_SIDE.BUY
     && state.type === ORDER_TYPE.MARKET
     && Math.max(effectiveMarketBuyCost, amountNumber) > balance.raw
-
-  const buyPayoutSummary = useMemo(() => {
-    if (state.side !== ORDER_SIDE.BUY) {
-      return {
-        payout: 0,
-        cost: 0,
-        profit: 0,
-        changePct: 0,
-        multiplier: 0,
-      }
-    }
-
-    if (isLimitOrder) {
-      const price = Number.parseFloat(state.limitPrice || '0') / 100
-      const shares = Number.parseFloat(state.limitShares || '0') || 0
-      const cost = price > 0 ? shares * price : 0
-      const payout = shares
-      const profit = payout - cost
-      const changePct = cost > 0 ? (profit / cost) * 100 : 0
-      const multiplier = cost > 0 ? payout / cost : 0
-      return { payout, cost, profit, changePct, multiplier }
-    }
-
-    const avgPrice = marketBuyFill?.avgPriceCents != null ? marketBuyFill.avgPriceCents / 100 : (currentBuyPriceCents ?? 0) / 100
-    const cost = marketBuyFill?.totalCost ?? amountNumber
-    const payout = marketBuyFill?.filledShares && marketBuyFill.filledShares > 0
-      ? marketBuyFill.filledShares
-      : (avgPrice > 0 ? amountNumber / avgPrice : 0)
-    const profit = payout - cost
-    const changePct = cost > 0 ? (profit / cost) * 100 : 0
-    const multiplier = cost > 0 ? payout / cost : 0
-
-    return { payout, cost, profit, changePct, multiplier }
-  }, [amountNumber, currentBuyPriceCents, isLimitOrder, marketBuyFill, state.limitPrice, state.limitShares, state.side])
 
   const avgBuyPriceDollars = typeof currentBuyPriceCents === 'number' && Number.isFinite(currentBuyPriceCents)
     ? currentBuyPriceCents / 100
@@ -849,20 +1080,6 @@ export default function EventOrderPanelForm({
   const shouldShowLimitMinimumWarning = showLimitMinimumWarning
     && isLimitOrder
     && limitSharesNumber < MIN_LIMIT_ORDER_SHARES
-
-  function clearValidationWarnings() {
-    setShowMarketMinimumWarning(false)
-    setShowInsufficientSharesWarning(false)
-    setShowInsufficientBalanceWarning(false)
-    setShowAmountTooLowWarning(false)
-    setShowNoLiquidityWarning(false)
-  }
-
-  function clearValidationFeedback() {
-    clearValidationWarnings()
-    setShouldShakeInput(false)
-    setShouldShakeLimitShares(false)
-  }
 
   function focusInput() {
     state.inputRef?.current?.focus()
