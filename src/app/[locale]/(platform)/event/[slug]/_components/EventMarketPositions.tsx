@@ -82,12 +82,11 @@ function resolvePositionCost(position: UserPosition) {
     return derivedCost
   }
 
-  const baseCostValue = toNumber(position.totalBought)
+  return toNumber(position.totalBought)
     ?? toNumber(position.initialValue)
     ?? (typeof position.total_position_cost === 'number'
       ? Number(fromMicro(String(position.total_position_cost), 2))
       : null)
-  return baseCostValue
 }
 
 function resolvePositionValue(position: UserPosition, marketPrice: number | null = null) {
@@ -776,7 +775,7 @@ function NetPositionsDialog({
                           src={row.iconUrl}
                           alt={row.outcomeLabel}
                           sizes="36px"
-                          containerClassName="size-9 shrink-0 rounded-md"
+                          containerClassName="size-9 rounded-md"
                         />
                       )
                     : (
