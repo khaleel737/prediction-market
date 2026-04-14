@@ -325,7 +325,6 @@ function useMarketChannelConnection({
       if (!isActive || ws || document.hidden) {
         return
       }
-      setConnectionStatus('connecting')
       ws = new WebSocket(`${wsUrl}/ws/market`)
       ws.addEventListener('open', handleOpen)
       ws.addEventListener('message', handleMessage)
@@ -407,14 +406,14 @@ export function useMarketChannelSubscription(listener: MarketChannelListener) {
   }
   useEffect(function subscribeToMarketChannel() {
     return context.subscribe(listener)
-  }, [context.subscribe, listener])
+  }, [context, listener])
 }
 
 export function useOptionalMarketChannelSubscription(listener: MarketChannelListener) {
   const context = use(MarketChannelContext)
   useEffect(function subscribeToOptionalMarketChannel() {
     return context?.subscribe(listener)
-  }, [context?.subscribe, listener])
+  }, [context, listener])
 }
 
 export default EventMarketChannelProvider
