@@ -19,16 +19,19 @@ interface PositionShareDialogProps {
   payload: ShareCardPayload | null
 }
 
-export function PositionShareDialog({ open, onOpenChange, payload }: PositionShareDialogProps) {
-  const t = useExtracted()
-  const isMobile = useIsMobile()
-
-  const shareCardUrl = useMemo(() => {
+function useShareCardUrl(payload: ShareCardPayload | null) {
+  return useMemo(() => {
     if (!payload) {
       return ''
     }
     return buildShareCardUrl(payload)
   }, [payload])
+}
+
+export function PositionShareDialog({ open, onOpenChange, payload }: PositionShareDialogProps) {
+  const t = useExtracted()
+  const isMobile = useIsMobile()
+  const shareCardUrl = useShareCardUrl(payload)
 
   const dialogContent = open
     ? (
@@ -70,20 +73,15 @@ interface PositionShareDialogContentProps {
   shareCardUrl: string
 }
 
-function PositionShareDialogContent({
-  payload,
-  shareCardUrl,
-}: PositionShareDialogContentProps) {
-  const t = useExtracted()
-  const [shareCardStatus, setShareCardStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
+type ShareCardStatus = 'idle' | 'loading' | 'ready' | 'error'
+
+function useShareCardState(shareCardUrl: string) {
+  const [shareCardStatus, setShareCardStatus] = useState<ShareCardStatus>(
     shareCardUrl ? 'loading' : 'idle',
   )
   const [shareCardBlob, setShareCardBlob] = useState<Blob | null>(null)
-  const [isCopyingShareImage, setIsCopyingShareImage] = useState(false)
-  const [isSharingOnX, setIsSharingOnX] = useState(false)
-  const shareOnXTimeoutRef = useRef<number | null>(null)
 
-  useEffect(() => {
+  useEffect(function preloadShareCardBlob() {
     if (!shareCardUrl || shareCardStatus !== 'ready') {
       return
     }
@@ -109,27 +107,73 @@ function PositionShareDialogContent({
         }
       })
 
-    return () => {
+    return function cancelShareCardBlobPreload() {
       isCancelled = true
     }
   }, [shareCardStatus, shareCardUrl])
 
-  useEffect(() => {
-    return () => {
-      if (shareOnXTimeoutRef.current !== null) {
-        window.clearTimeout(shareOnXTimeoutRef.current)
+  return { shareCardStatus, setShareCardStatus, shareCardBlob }
+}
+
+function useShareOnXHandler(payload: ShareCardPayload | null, t: ReturnType<typeof useExtracted>) {
+  const [isSharingOnX, setIsSharingOnX] = useState(false)
+  const shareOnXTimeoutRef = useRef<number | null>(null)
+
+  useEffect(function clearShareOnXTimeoutOnUnmount() {
+    const timeoutRefSnapshot = shareOnXTimeoutRef
+    return function cleanupShareOnXTimeout() {
+      if (timeoutRefSnapshot.current !== null) {
+        window.clearTimeout(timeoutRefSnapshot.current)
       }
     }
   }, [])
 
-  const handleShareCardLoaded = useCallback(() => {
-    setShareCardStatus('ready')
-  }, [])
+  const handleShareOnX = useCallback(() => {
+    if (!payload) {
+      return
+    }
 
-  const handleShareCardError = useCallback(() => {
-    setShareCardStatus('error')
-    toast.error(t('Unable to generate a share card right now.'))
-  }, [t])
+    setIsSharingOnX(true)
+    try {
+      const profileSlug = payload.userName?.trim() || 'user'
+      const baseUrl = window.location.origin
+      const profilePath = buildPublicProfilePath(profileSlug) ?? '/@user'
+      const profileUrl = new URL(profilePath, baseUrl).toString()
+      const shareText = [
+        t('I just put my money where my mouth is on @kuest.'),
+        '',
+        t('Trade against me: {url}', { url: profileUrl }),
+      ].join('\n')
+
+      const shareUrl = new URL('https://x.com/intent/tweet')
+      shareUrl.searchParams.set('text', shareText)
+      window.open(shareUrl.toString(), '_blank', 'noopener,noreferrer')
+    }
+    finally {
+      if (shareOnXTimeoutRef.current !== null) {
+        window.clearTimeout(shareOnXTimeoutRef.current)
+      }
+
+      shareOnXTimeoutRef.current = window.setTimeout(() => {
+        setIsSharingOnX(false)
+        shareOnXTimeoutRef.current = null
+      }, 200)
+    }
+  }, [payload, t])
+
+  return { isSharingOnX, handleShareOnX }
+}
+
+function useCopyShareImage({
+  shareCardBlob,
+  shareCardUrl,
+  t,
+}: {
+  shareCardBlob: Blob | null
+  shareCardUrl: string
+  t: ReturnType<typeof useExtracted>
+}) {
+  const [isCopyingShareImage, setIsCopyingShareImage] = useState(false)
 
   const handleCopyShareImage = useCallback(async () => {
     if (!shareCardUrl) {
@@ -177,38 +221,31 @@ function PositionShareDialogContent({
     }
   }, [shareCardBlob, shareCardUrl, t])
 
-  const handleShareOnX = useCallback(() => {
-    if (!payload) {
-      return
-    }
+  return { isCopyingShareImage, handleCopyShareImage }
+}
 
-    setIsSharingOnX(true)
-    try {
-      const profileSlug = payload.userName?.trim() || 'user'
-      const baseUrl = window.location.origin
-      const profilePath = buildPublicProfilePath(profileSlug) ?? '/@user'
-      const profileUrl = new URL(profilePath, baseUrl).toString()
-      const shareText = [
-        t('I just put my money where my mouth is on @kuest.'),
-        '',
-        t('Trade against me: {url}', { url: profileUrl }),
-      ].join('\n')
+function useShareCardStatusHandlers(setShareCardStatus: (status: ShareCardStatus) => void, t: ReturnType<typeof useExtracted>) {
+  const handleShareCardLoaded = useCallback(() => {
+    setShareCardStatus('ready')
+  }, [setShareCardStatus])
 
-      const shareUrl = new URL('https://x.com/intent/tweet')
-      shareUrl.searchParams.set('text', shareText)
-      window.open(shareUrl.toString(), '_blank', 'noopener,noreferrer')
-    }
-    finally {
-      if (shareOnXTimeoutRef.current !== null) {
-        window.clearTimeout(shareOnXTimeoutRef.current)
-      }
+  const handleShareCardError = useCallback(() => {
+    setShareCardStatus('error')
+    toast.error(t('Unable to generate a share card right now.'))
+  }, [setShareCardStatus, t])
 
-      shareOnXTimeoutRef.current = window.setTimeout(() => {
-        setIsSharingOnX(false)
-        shareOnXTimeoutRef.current = null
-      }, 200)
-    }
-  }, [payload, t])
+  return { handleShareCardLoaded, handleShareCardError }
+}
+
+function PositionShareDialogContent({
+  payload,
+  shareCardUrl,
+}: PositionShareDialogContentProps) {
+  const t = useExtracted()
+  const { shareCardStatus, setShareCardStatus, shareCardBlob } = useShareCardState(shareCardUrl)
+  const { isCopyingShareImage, handleCopyShareImage } = useCopyShareImage({ shareCardBlob, shareCardUrl, t })
+  const { isSharingOnX, handleShareOnX } = useShareOnXHandler(payload, t)
+  const { handleShareCardLoaded, handleShareCardError } = useShareCardStatusHandlers(setShareCardStatus, t)
 
   const isShareReady = shareCardStatus === 'ready'
 
