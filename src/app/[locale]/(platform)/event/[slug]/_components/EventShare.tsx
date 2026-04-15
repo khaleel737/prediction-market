@@ -137,7 +137,7 @@ function useAffiliateToastData({
     affiliateToastDataRequestRef.current = null
   }, [affiliateCode])
 
-  const ensureAffiliateToastData = useCallback(async function ensureAffiliateToastData(): Promise<AffiliateToastData> {
+  const ensureAffiliateToastData = useCallback(async (): Promise<AffiliateToastData> => {
     if (!affiliateCode) {
       return {
         affiliateSharePercent: null,
@@ -189,7 +189,7 @@ function useAffiliateToastData({
     void ensureAffiliateToastData()
   }
 
-  const showAffiliateToast = useCallback(async function showAffiliateToast() {
+  const showAffiliateToast = useCallback(async () => {
     const toastData = await ensureAffiliateToastData()
 
     maybeShowAffiliateToast({
