@@ -31,7 +31,7 @@ interface InfiniteScrollErrorState {
 }
 
 function useMarketsByConditionId(markets: Event['markets']) {
-  return useMemo(function buildMarketsByConditionIdMap() {
+  return useMemo(() => {
     const map = new Map<string, Event['markets'][number]>()
     markets.forEach((market) => {
       if (market?.condition_id) {
@@ -43,7 +43,7 @@ function useMarketsByConditionId(markets: Event['markets']) {
 }
 
 function useExpandedCommentIds(comments: Array<{ id: string, recent_replies?: Array<unknown> | null }>) {
-  return useMemo(function buildExpandedCommentsSet() {
+  return useMemo(() => {
     return new Set(
       comments
         .filter(comment => (comment.recent_replies?.length ?? 0) > 3)
