@@ -207,7 +207,7 @@ function useRealtimeActivityRefresh({
     }
   }, [hasMarkets, refreshLatestActivity])
 
-  const handleMarketChannelMessage = useCallback(function handleMarketChannelMessage(payload: any) {
+  const handleMarketChannelMessage = useCallback((payload: any) => {
     if (!hasMarkets || tokenIds.length === 0) {
       return
     }

@@ -55,7 +55,7 @@ function useCommentReplyItemHandlers({
 }) {
   const { open } = useAppKit()
 
-  const handleReplyClick = useCallback(function handleReplyClick() {
+  const handleReplyClick = useCallback(() => {
     if (!user) {
       queueMicrotask(() => open())
       return
@@ -67,20 +67,20 @@ function useCommentReplyItemHandlers({
     }
   }, [user, reply, replyingTo, onSetReplyingTo, onSetReplyText, open])
 
-  const handleLikeToggle = useCallback(function handleLikeToggle() {
+  const handleLikeToggle = useCallback(() => {
     onLikeToggle(commentId, reply.id)
   }, [commentId, reply.id, onLikeToggle])
 
-  const handleDelete = useCallback(function handleDelete() {
+  const handleDelete = useCallback(() => {
     onDelete(commentId, reply.id)
   }, [commentId, reply.id, onDelete])
 
-  const handleReplyAdded = useCallback(function handleReplyAdded() {
+  const handleReplyAdded = useCallback(() => {
     onSetReplyingTo(null)
     onSetReplyText('')
   }, [onSetReplyingTo, onSetReplyText])
 
-  const handleReplyCancel = useCallback(function handleReplyCancel() {
+  const handleReplyCancel = useCallback(() => {
     onSetReplyingTo(null)
     onSetReplyText('')
   }, [onSetReplyingTo, onSetReplyText])

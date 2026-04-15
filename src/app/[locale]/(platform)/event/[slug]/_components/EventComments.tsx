@@ -73,42 +73,42 @@ function useCommentActionHandlers({
   setSortBy: (value: 'newest' | 'most_liked') => void
   setHoldersOnly: (value: boolean) => void
 }) {
-  const handleRepliesLoaded = useCallback(function loadRepliesForComment(commentId: string) {
+  const handleRepliesLoaded = useCallback((commentId: string) => {
     loadMoreReplies(commentId)
   }, [loadMoreReplies])
 
-  const handleLikeToggled = useCallback(function toggleLikeForComment(commentId: string) {
+  const handleLikeToggled = useCallback((commentId: string) => {
     toggleCommentLike(commentId)
   }, [toggleCommentLike])
 
-  const handleDeleteReply = useCallback(function removeReplyFromComment(commentId: string, replyId: string) {
+  const handleDeleteReply = useCallback((commentId: string, replyId: string) => {
     deleteReply(commentId, replyId)
   }, [deleteReply])
 
-  const handleUpdateReply = useCallback(function toggleLikeForReply(_: string, replyId: string) {
+  const handleUpdateReply = useCallback((_: string, replyId: string) => {
     toggleReplyLike(replyId)
   }, [toggleReplyLike])
 
-  const handleDeleteComment = useCallback(function removeComment(commentId: string) {
+  const handleDeleteComment = useCallback((commentId: string) => {
     deleteComment(commentId)
   }, [deleteComment])
 
-  const handleRefetch = useCallback(function refetchAllComments() {
+  const handleRefetch = useCallback(() => {
     setInfiniteScrollError(null)
     void refetch()
   }, [refetch, setInfiniteScrollError])
 
-  const handleCommentAdded = useCallback(function refetchAfterCommentAdded() {
+  const handleCommentAdded = useCallback(() => {
     setInfiniteScrollError(null)
     void refetch()
   }, [refetch, setInfiniteScrollError])
 
-  const handleSortChange = useCallback(function changeCommentSort(value: string) {
+  const handleSortChange = useCallback((value: string) => {
     setInfiniteScrollError(null)
     setSortBy(value as 'newest' | 'most_liked')
   }, [setInfiniteScrollError, setSortBy])
 
-  const handleHoldersOnlyChange = useCallback(function toggleHoldersOnlyFilter(checked: boolean | 'indeterminate') {
+  const handleHoldersOnlyChange = useCallback((checked: boolean | 'indeterminate') => {
     setInfiniteScrollError(null)
     setHoldersOnly(Boolean(checked))
   }, [setInfiniteScrollError, setHoldersOnly])
@@ -177,7 +177,7 @@ function useInfiniteCommentsScroll({
     }
   }, [handleFetchNextPage, hasNextPage, isFetchingNextPage, isInitialized, visibleInfiniteScrollError])
 
-  const retryInfiniteScroll = useCallback(function retryInfiniteScrollFetch() {
+  const retryInfiniteScroll = useCallback(() => {
     void handleFetchNextPage()
   }, [handleFetchNextPage])
 

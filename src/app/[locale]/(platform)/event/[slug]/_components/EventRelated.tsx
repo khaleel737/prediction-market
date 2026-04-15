@@ -99,7 +99,7 @@ function useTabIndicator({
 }) {
   const [backgroundStyle, setBackgroundStyle] = useState<BackgroundStyle>(INITIAL_BACKGROUND_STYLE)
 
-  const updateBackgroundPosition = useCallback(function updateBackgroundPosition() {
+  const updateBackgroundPosition = useCallback(() => {
     if (activeIndex === -1) {
       setBackgroundStyle({ ...INITIAL_BACKGROUND_STYLE })
       return
@@ -141,7 +141,7 @@ function useHorizontalScrollShadows(scrollContainerRef: React.RefObject<HTMLDivE
   const [showLeftShadow, setShowLeftShadow] = useState(false)
   const [showRightShadow, setShowRightShadow] = useState(false)
 
-  const updateScrollShadows = useCallback(function updateScrollShadows() {
+  const updateScrollShadows = useCallback(() => {
     const container = scrollContainerRef.current
     if (!container) {
       setShowLeftShadow(false)
