@@ -93,14 +93,11 @@ function useTweetMarketResolution({
   event: Event
   currentTimestamp: number | null
 }) {
-  const isTweetMarketEvent = useMemo(function detectTweetMarketEvent() {
-    return isTweetMarketsEvent(event)
-  }, [event])
-
+  const isTweetMarketEvent = useMemo(() => isTweetMarketsEvent(event), [event])
   const xtrackerTweetCountQuery = useXTrackerTweetCount(event, isTweetMarketEvent)
   const xtrackerTotalCount = xtrackerTweetCountQuery.data?.totalCount ?? null
 
-  const isTweetMarketFinal = useMemo(function detectTweetMarketFinal() {
+  const isTweetMarketFinal = useMemo(() => {
     if (currentTimestamp == null) {
       return false
     }
@@ -140,7 +137,7 @@ function useReviewConditionIds({
   markets: Event['markets']
   currentTimestamp: number | null
 }) {
-  return useMemo(function buildReviewConditionIds() {
+  return useMemo(() => {
     if (currentTimestamp == null) {
       return new Set<string>()
     }
@@ -156,7 +153,7 @@ function useReviewConditionIds({
 }
 
 function useEventTokenIds(markets: Event['markets']) {
-  return useMemo(function buildEventTokenIds() {
+  return useMemo(() => {
     const ids = new Set<string>()
 
     markets.forEach((market) => {
@@ -172,7 +169,7 @@ function useEventTokenIds(markets: Event['markets']) {
 }
 
 function useOwnerAddress(user: { proxy_wallet_address?: string | null, proxy_wallet_status?: string | null } | null) {
-  return useMemo(function resolveOwnerAddress() {
+  return useMemo(() => {
     if (user && user.proxy_wallet_address && user.proxy_wallet_status === 'deployed') {
       return user.proxy_wallet_address as `0x${string}`
     }
@@ -376,7 +373,7 @@ function useEventUserPositionsData({
       }),
   })
 
-  const otherShares = useMemo(function sumOtherShares() {
+  const otherShares = useMemo(() => {
     if (!otherBalances?.length) {
       return 0
     }
@@ -392,7 +389,7 @@ function useEventUserPositionsData({
     enabled: Boolean(userId),
   })
 
-  const mergedEventUserPositions = useMemo(function mergeUserPositionsWithTokenBalances() {
+  const mergedEventUserPositions = useMemo(() => {
     const basePositions = userPositions ?? []
     const deltas = event.markets.flatMap((market) => {
       const tokenShares = sharesByCondition[market.condition_id]
@@ -451,7 +448,7 @@ function useEventUserPositionsData({
     return applyPositionDeltasToUserPositions(basePositions, deltas) ?? basePositions
   }, [event.markets, event.slug, sharesByCondition, userPositions])
 
-  const openOrdersCountByCondition = useMemo(function countOpenOrdersByCondition() {
+  const openOrdersCountByCondition = useMemo(() => {
     const pages = eventOpenOrdersData?.pages ?? []
     return pages.reduce<Record<string, number>>((acc, page) => {
       page.data.forEach((order) => {
@@ -465,7 +462,7 @@ function useEventUserPositionsData({
     }, {})
   }, [eventOpenOrdersData?.pages])
 
-  const positionTagsByCondition = useMemo(function buildPositionTagsByCondition() {
+  const positionTagsByCondition = useMemo(() => {
     if (!mergedEventUserPositions.length) {
       return {}
     }
@@ -545,7 +542,7 @@ function useEventUserPositionsData({
     }, {})
   }, [event.markets, mergedEventUserPositions, normalizeOutcomeLabel, t])
 
-  const convertOptions = useMemo(function buildConvertOptions() {
+  const convertOptions = useMemo(() => {
     if (!isNegRiskEnabled || !mergedEventUserPositions.length) {
       return []
     }
@@ -594,7 +591,7 @@ function useEventUserPositionsData({
     )
   }, [event.markets, isNegRiskEnabled, mergedEventUserPositions])
 
-  const eventOutcomes = useMemo(function buildEventOutcomes() {
+  const eventOutcomes = useMemo(() => {
     return event.markets.map(market => ({
       conditionId: market.condition_id,
       questionId: market.question_id,
@@ -619,7 +616,7 @@ function useMarketRowsByResolution({
   marketRows: EventMarketRow[]
   orderBookSummaries: OrderBookSummariesResponse | undefined
 }) {
-  const pricedMarketRows = useMemo(function buildPricedMarketRows() {
+  const pricedMarketRows = useMemo(() => {
     return marketRows.map(row => ({
       ...row,
       yesPriceValue: resolveOutcomeUnitPrice(row.market, OUTCOME_INDEX.YES, {
@@ -633,7 +630,7 @@ function useMarketRowsByResolution({
     }))
   }, [marketRows, orderBookSummaries])
 
-  const { activeDisplayRows, resolvedDisplayRows } = useMemo(function splitRowsByResolution() {
+  const { activeDisplayRows, resolvedDisplayRows } = useMemo(() => {
     const activeRows: EventMarketRow[] = []
     const resolvedRows: EventMarketRow[] = []
 
@@ -649,7 +646,7 @@ function useMarketRowsByResolution({
     return { activeDisplayRows: activeRows, resolvedDisplayRows: resolvedRows }
   }, [pricedMarketRows])
 
-  const sortedResolvedDisplayRows = useMemo(function sortResolvedRowsByEndTime() {
+  const sortedResolvedDisplayRows = useMemo(() => {
     if (!resolvedDisplayRows.length) {
       return resolvedDisplayRows
     }
