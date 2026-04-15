@@ -25,11 +25,14 @@ interface EventActivityProps {
   event: Event
 }
 
-function resolveActivityRowKey(activity: ActivityOrder, index: number) {
+function resolveActivityRowKey(activity: ActivityOrder) {
   return [
     activity.id,
     activity.created_at,
-    index,
+    activity.tx_hash ?? 'no-tx',
+    activity.user.id,
+    activity.market.condition_id ?? 'no-market',
+    activity.side,
   ].join(':')
 }
 
@@ -415,7 +418,7 @@ export default function EventActivity({ event }: EventActivityProps) {
       {!loading && activities.length > 0 && (
         <div className="overflow-hidden">
           <div className="divide-y divide-border/80">
-            {activities.map((activity, index) => {
+            {activities.map((activity) => {
               const timeAgoLabel = formatTimeAgo(activity.created_at)
               const txUrl = activity.tx_hash ? `${POLYGON_SCAN_BASE}/tx/${activity.tx_hash}` : null
               const priceLabel = formatSharePriceLabel(Number(activity.price))
@@ -436,7 +439,7 @@ export default function EventActivity({ event }: EventActivityProps) {
 
               return (
                 <div
-                  key={resolveActivityRowKey(activity, index)}
+                  key={resolveActivityRowKey(activity)}
                 >
                   <ProfileLink
                     user={{
