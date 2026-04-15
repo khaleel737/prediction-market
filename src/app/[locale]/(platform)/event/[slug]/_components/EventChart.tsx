@@ -208,21 +208,13 @@ function useTweetMarketsDerivations({
   currentTimestampMs: number
   xtrackerData: ReturnType<typeof useXTrackerTweetCount>['data']
 }) {
-  const shouldShowTweetMarketsPanel = useMemo(function detectTweetMarketsEvent() {
-    return isTweetMarketsEvent(event)
-  }, [event])
-
-  const tweetCount = useMemo(function resolveStaticTweetCount() {
-    return resolveTweetCount(event)
-  }, [event])
-
-  const tweetCountdownTargetMs = useMemo(function resolveStaticTweetCountdownTarget() {
-    return resolveTweetCountdownTargetMs(event)
-  }, [event])
+  const shouldShowTweetMarketsPanel = useMemo(() => isTweetMarketsEvent(event), [event])
+  const tweetCount = useMemo(() => resolveTweetCount(event), [event])
+  const tweetCountdownTargetMs = useMemo(() => resolveTweetCountdownTargetMs(event), [event])
 
   const resolvedTweetCount = xtrackerData?.totalCount ?? tweetCount
 
-  const resolvedTweetCountdownTargetMs = useMemo(function resolveTweetCountdownTarget() {
+  const resolvedTweetCountdownTargetMs = useMemo(() => {
     const trackingEndMs = xtrackerData?.trackingEndMs
     if (typeof trackingEndMs === 'number' && Number.isFinite(trackingEndMs) && trackingEndMs > 0) {
       return trackingEndMs
@@ -231,7 +223,7 @@ function useTweetMarketsDerivations({
     return tweetCountdownTargetMs
   }, [tweetCountdownTargetMs, xtrackerData?.trackingEndMs])
 
-  const resolvedTweetStartTargetMs = useMemo(function resolveTweetStartTarget() {
+  const resolvedTweetStartTargetMs = useMemo(() => {
     const trackingStartMs = xtrackerData?.trackingStartMs
     if (typeof trackingStartMs === 'number' && Number.isFinite(trackingStartMs) && trackingStartMs > 0) {
       return trackingStartMs
@@ -285,7 +277,7 @@ function useMarketSelection({
     ? customMarketSelection.marketIds
     : null
 
-  const selectedMarketIds = useMemo(function resolveSelectedMarkets() {
+  const selectedMarketIds = useMemo(() => {
     return isSingleMarket
       ? defaultMarketIds
       : resolveSelectedMarketIds(activeCustomMarketIds, allMarketIds, defaultMarketIds)
@@ -353,34 +345,23 @@ function useChartSeriesBuilders({
   yesOutcomeLabel: string
   noOutcomeLabel: string
 }) {
-  const chartSeries = useMemo(function buildTopChartSeries() {
-    return buildChartSeries(event, topMarketIds)
-  }, [event, topMarketIds])
+  const chartSeries = useMemo(() => buildChartSeries(event, topMarketIds), [event, topMarketIds])
+  const fallbackChartSeries = useMemo(() => buildChartSeries(event, fallbackMarketIds), [event, fallbackMarketIds])
+  const allSeries = useMemo(() => buildChartSeries(event, allMarketIds), [event, allMarketIds])
+  const selectedSeries = useMemo(() => buildChartSeries(event, selectedMarketIds), [event, selectedMarketIds])
 
-  const fallbackChartSeries = useMemo(function buildFallbackChartSeries() {
-    return buildChartSeries(event, fallbackMarketIds)
-  }, [event, fallbackMarketIds])
-
-  const allSeries = useMemo(function buildAllChartSeries() {
-    return buildChartSeries(event, allMarketIds)
-  }, [event, allMarketIds])
-
-  const selectedSeries = useMemo(function buildSelectedChartSeries() {
-    return buildChartSeries(event, selectedMarketIds)
-  }, [event, selectedMarketIds])
-
-  const selectedColors = useMemo(function buildSelectedSeriesColors() {
+  const selectedColors = useMemo(() => {
     return Object.fromEntries(selectedSeries.map(series => [series.key, series.color]))
   }, [selectedSeries])
 
-  const marketOptions = useMemo(function buildMarketOptions() {
+  const marketOptions = useMemo(() => {
     return allSeries.map(series => ({
       ...series,
       color: selectedColors[series.key] ?? '#374151',
     }))
   }, [allSeries, selectedColors])
 
-  const baseSeries = useMemo(function resolveBaseSeries() {
+  const baseSeries = useMemo(() => {
     if (!isSingleMarket) {
       if (selectedSeries.length > 0) {
         return selectedSeries
@@ -390,7 +371,7 @@ function useChartSeriesBuilders({
     return chartSeries.length > 0 ? chartSeries : fallbackChartSeries
   }, [chartSeries, fallbackChartSeries, isSingleMarket, selectedSeries])
 
-  const bothOutcomeSeries = useMemo(function buildBothOutcomeSeries() {
+  const bothOutcomeSeries = useMemo(() => {
     if (!showBothOutcomes || !primaryConditionId) {
       return []
     }
@@ -400,7 +381,7 @@ function useChartSeriesBuilders({
     ]
   }, [showBothOutcomes, primaryConditionId, yesSeriesKey, noSeriesKey, yesOutcomeLabel, noOutcomeLabel])
 
-  const effectiveSeries = useMemo(function resolveEffectiveSeries() {
+  const effectiveSeries = useMemo(() => {
     if (showBothOutcomes) {
       return bothOutcomeSeries
     }
@@ -452,7 +433,7 @@ function useTradeFlowLabels(outcomeTokenKey: string) {
     })
   }
 
-  useEffect(function pruneExpiredTradeFlowLabels() {
+  useEffect(() => {
     if (!outcomeTokenKey || !hasTradeFlowLabels) {
       return
     }
@@ -788,7 +769,7 @@ function EventChartComponent({
     isSingleMarket,
   })
 
-  const primaryMarket = useMemo(function resolvePrimaryMarket() {
+  const primaryMarket = useMemo(() => {
     if (isSingleMarket) {
       return event.markets[0]
     }
