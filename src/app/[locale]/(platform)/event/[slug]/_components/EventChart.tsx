@@ -792,11 +792,11 @@ function EventChartComponent({
     if (isSingleMarket) {
       return event.markets[0]
     }
-    const primaryId = topMarketIds[0] ?? fallbackMarketIds[0]
+    const primaryId = selectedMarketIds[0] ?? topMarketIds[0] ?? fallbackMarketIds[0]
     return (primaryId
       ? event.markets.find(market => market.condition_id === primaryId)
       : null) ?? event.markets[0]
-  }, [event.markets, topMarketIds, fallbackMarketIds, isSingleMarket])
+  }, [event.markets, selectedMarketIds, topMarketIds, fallbackMarketIds, isSingleMarket])
 
   const primaryConditionId = primaryMarket?.condition_id ?? ''
   const yesSeriesKey = showBothOutcomes && primaryConditionId
