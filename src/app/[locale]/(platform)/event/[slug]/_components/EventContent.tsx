@@ -323,14 +323,14 @@ function useInitialMarketAndOutcome({
   event: Event
   marketSlug: string | undefined
 }) {
-  const initialMarket = useMemo(function resolveInitialMarket() {
+  const initialMarket = useMemo(() => {
     if (marketSlug) {
       return event.markets.find(market => market.slug === marketSlug) ?? resolveDefaultMarket(event.markets) ?? null
     }
     return resolveDefaultMarket(event.markets) ?? null
   }, [event.markets, marketSlug])
 
-  const initialOutcome = useMemo(function resolveInitialOutcome() {
+  const initialOutcome = useMemo(() => {
     if (!initialMarket) {
       return null
     }
@@ -349,14 +349,14 @@ function useSelectedMarketInfo({
   currentMarketId: string | undefined
   initialMarket: Event['markets'][number] | null
 }) {
-  const selectedMarket = useMemo(function resolveSelectedMarket() {
+  const selectedMarket = useMemo(() => {
     if (!currentMarketId) {
       return initialMarket
     }
     return event.markets.find(market => market.condition_id === currentMarketId) ?? initialMarket
   }, [currentMarketId, event.markets, initialMarket])
 
-  const selectedMarketTimelineOutcome = useMemo(function resolveSelectedMarketTimelineOutcome() {
+  const selectedMarketTimelineOutcome = useMemo(() => {
     return selectedMarket && isMarketResolved(selectedMarket)
       ? toResolutionTimelineOutcome(resolveEventResolvedOutcomeIndex(event, selectedMarket))
       : null
@@ -378,7 +378,7 @@ function useBackToTopBounds({
   contentRef: React.RefObject<HTMLDivElement | null>
   eventMarketsRef: React.RefObject<HTMLDivElement | null>
 }) {
-  return useMemo(function computeBackToTopBounds() {
+  return useMemo(() => {
     if (isMobile || !contentRef.current || !eventMarketsRef.current) {
       return null
     }
