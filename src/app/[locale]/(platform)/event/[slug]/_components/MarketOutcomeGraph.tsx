@@ -50,35 +50,36 @@ const PredictionChart = dynamic<PredictionChartProps>(
 const YES_SERIES_COLOR = 'var(--primary)'
 const NO_SERIES_COLOR = 'var(--no)'
 
-export default function MarketOutcomeGraph({
-  market,
-  outcome,
-  allMarkets,
-  currentTimestamp,
-  eventCreatedAt,
-  isMobile,
-}: MarketOutcomeGraphProps) {
-  const t = useExtracted()
-  const site = useSiteIdentity()
-  const normalizeOutcomeLabel = useOutcomeLabel()
-  const [activeTimeRange, setActiveTimeRange] = useState<TimeRange>('ALL')
-  const [activeOutcomeOverride, setActiveOutcomeOverride] = useState<{ key: string, index: number } | null>(null)
-  const [cursorState, setCursorState] = useState<{ key: string, snapshot: PredictionChartCursorSnapshot | null }>({
-    key: '',
-    snapshot: null,
-  })
-  const [exportDialogOpen, setExportDialogOpen] = useState(false)
-  const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
-  const marketTargets = useMemo(() => buildMarketTargets(allMarkets), [allMarkets])
-  const { width: windowWidth } = useWindowSize()
-  const chartWidth = isMobile ? ((windowWidth || 400) * 0.84) : Math.min((windowWidth ?? 1440) * 0.55, 900)
+function useChartSettingsStore() {
   const chartSettings = useSyncExternalStore(
     subscribeToChartSettings,
     loadStoredChartSettings,
     getStoredChartSettingsServerSnapshot,
   )
+
+  const handleChartSettingsChange = useCallback(function handleChartSettingsChange(
+    nextSettings: ChartSettings | ((current: ChartSettings) => ChartSettings),
+  ) {
+    const resolvedSettings = typeof nextSettings === 'function'
+      ? nextSettings(chartSettings)
+      : nextSettings
+    storeChartSettings(resolvedSettings)
+  }, [chartSettings])
+
+  return { chartSettings, handleChartSettingsChange }
+}
+
+function useOutcomeSelection({
+  market,
+  outcome,
+}: {
+  market: Market
+  outcome: Outcome
+}) {
+  const [activeOutcomeOverride, setActiveOutcomeOverride] = useState<{ key: string, index: number } | null>(null)
+
   const activeOutcomeKey = outcome.token_id || `${market.condition_id}:${outcome.outcome_index}`
-  const activeOutcomeIndex = useMemo(() => {
+  const activeOutcomeIndex = useMemo(function resolveActiveOutcomeIndex() {
     if (activeOutcomeOverride?.key === activeOutcomeKey) {
       return activeOutcomeOverride.index
     }
@@ -86,46 +87,76 @@ export default function MarketOutcomeGraph({
     return outcome.outcome_index
   }, [activeOutcomeKey, activeOutcomeOverride, outcome.outcome_index])
 
-  const activeOutcome = useMemo(
-    () => market.outcomes.find(item => item.outcome_index === activeOutcomeIndex) ?? outcome,
-    [market.outcomes, activeOutcomeIndex, outcome],
-  )
+  const activeOutcome = useMemo(function resolveActiveOutcome() {
+    return market.outcomes.find(item => item.outcome_index === activeOutcomeIndex) ?? outcome
+  }, [market.outcomes, activeOutcomeIndex, outcome])
+
   const oppositeOutcomeIndex = activeOutcomeIndex === OUTCOME_INDEX.YES
     ? OUTCOME_INDEX.NO
     : OUTCOME_INDEX.YES
-  const oppositeOutcome = useMemo(
-    () => market.outcomes.find(item => item.outcome_index === oppositeOutcomeIndex) ?? activeOutcome,
-    [market.outcomes, oppositeOutcomeIndex, activeOutcome],
-  )
-  const showOutcomeSwitch = market.outcomes.length > 1
-    && oppositeOutcome.outcome_index !== activeOutcome.outcome_index
-  const showBothOutcomes = chartSettings.bothOutcomes && showOutcomeSwitch
-  const yesOutcomeLabel = normalizeOutcomeLabel(
-    market.outcomes.find(item => item.outcome_index === OUTCOME_INDEX.YES)?.outcome_text,
-  ) ?? t('Yes')
-  const noOutcomeLabel = normalizeOutcomeLabel(
-    market.outcomes.find(item => item.outcome_index === OUTCOME_INDEX.NO)?.outcome_text,
-  ) ?? t('No')
 
-  const {
-    normalizedHistory,
-  } = useEventPriceHistory({
-    eventId: market.event_id,
-    range: activeTimeRange,
-    targets: marketTargets,
-    eventCreatedAt,
+  const oppositeOutcome = useMemo(function resolveOppositeOutcome() {
+    return market.outcomes.find(item => item.outcome_index === oppositeOutcomeIndex) ?? activeOutcome
+  }, [market.outcomes, oppositeOutcomeIndex, activeOutcome])
+
+  const handleShuffleOutcome = useCallback(function handleShuffleOutcome() {
+    setActiveOutcomeOverride({
+      key: activeOutcomeKey,
+      index: oppositeOutcome.outcome_index,
+    })
+  }, [activeOutcomeKey, oppositeOutcome.outcome_index])
+
+  return { activeOutcomeIndex, activeOutcome, oppositeOutcome, handleShuffleOutcome }
+}
+
+function useChartCursor(chartSignature: string) {
+  const [cursorState, setCursorState] = useState<{ key: string, snapshot: PredictionChartCursorSnapshot | null }>({
+    key: '',
+    snapshot: null,
   })
 
-  const chartData = useMemo(
-    () => (showBothOutcomes
-      ? buildComparisonChartData(normalizedHistory, market.condition_id)
-      : buildChartData(normalizedHistory, market.condition_id, activeOutcomeIndex)),
-    [normalizedHistory, market.condition_id, activeOutcomeIndex, showBothOutcomes],
-  )
-  const leadingGapStart = normalizedHistory[0]?.date ?? null
+  const cursorSnapshot = cursorState.key === chartSignature ? cursorState.snapshot : null
 
-  const series = useMemo(
-    () => (showBothOutcomes
+  const handleCursorDataChange = useCallback(function handleCursorDataChange(
+    nextSnapshot: PredictionChartCursorSnapshot | null,
+  ) {
+    setCursorState({ key: chartSignature, snapshot: nextSnapshot })
+  }, [chartSignature])
+
+  return { cursorSnapshot, handleCursorDataChange }
+}
+
+function useChartDataValues({
+  normalizedHistory,
+  conditionId,
+  activeOutcomeIndex,
+  activeTimeRange,
+  showBothOutcomes,
+  activeSeriesKey,
+  activeOutcome,
+  yesOutcomeLabel,
+  noOutcomeLabel,
+  normalizeOutcomeLabel,
+}: {
+  normalizedHistory: Array<Record<string, number | Date> & { date: Date }>
+  conditionId: string
+  activeOutcomeIndex: number
+  activeTimeRange: TimeRange
+  showBothOutcomes: boolean
+  activeSeriesKey: 'yes' | 'no' | 'value'
+  activeOutcome: Outcome
+  yesOutcomeLabel: string
+  noOutcomeLabel: string
+  normalizeOutcomeLabel: (value: string | null | undefined) => string | undefined
+}) {
+  const chartData = useMemo(function buildResolvedChartData() {
+    return showBothOutcomes
+      ? buildComparisonChartData(normalizedHistory, conditionId)
+      : buildChartData(normalizedHistory, conditionId, activeOutcomeIndex)
+  }, [normalizedHistory, conditionId, activeOutcomeIndex, showBothOutcomes])
+
+  const series = useMemo(function buildChartSeries() {
+    return showBothOutcomes
       ? [
           { key: 'yes', name: yesOutcomeLabel, color: YES_SERIES_COLOR },
           { key: 'no', name: noOutcomeLabel, color: NO_SERIES_COLOR },
@@ -134,46 +165,14 @@ export default function MarketOutcomeGraph({
           key: 'value',
           name: normalizeOutcomeLabel(activeOutcome.outcome_text) ?? activeOutcome.outcome_text,
           color: activeOutcome.outcome_index === OUTCOME_INDEX.NO ? NO_SERIES_COLOR : YES_SERIES_COLOR,
-        }]),
-    [activeOutcome.outcome_index, activeOutcome.outcome_text, showBothOutcomes, yesOutcomeLabel, noOutcomeLabel, normalizeOutcomeLabel],
-  )
-  const chartSignature = useMemo(
-    () => `${market.condition_id}:${activeOutcomeIndex}:${activeTimeRange}:${showBothOutcomes ? 'both' : 'single'}`,
-    [market.condition_id, activeOutcomeIndex, activeTimeRange, showBothOutcomes],
-  )
-  const cursorSnapshot = cursorState.key === chartSignature ? cursorState.snapshot : null
-  const handleCursorDataChange = useCallback((nextSnapshot: PredictionChartCursorSnapshot | null) => {
-    setCursorState({ key: chartSignature, snapshot: nextSnapshot })
-  }, [chartSignature])
-  const handleChartSettingsChange = useCallback((nextSettings: ChartSettings | ((current: ChartSettings) => ChartSettings)) => {
-    const resolvedSettings = typeof nextSettings === 'function'
-      ? nextSettings(chartSettings)
-      : nextSettings
-    storeChartSettings(resolvedSettings)
-  }, [chartSettings])
-  const handleShuffleOutcome = useCallback(() => {
-    setActiveOutcomeOverride({
-      key: activeOutcomeKey,
-      index: oppositeOutcome.outcome_index,
-    })
-  }, [activeOutcomeKey, oppositeOutcome.outcome_index])
-  const hasChartData = chartData.length > 0
-  const watermark = useMemo(
-    () => ({
-      iconSvg: site.logoSvg,
-      label: site.name,
-    }),
-    [site.logoSvg, site.name],
-  )
+        }]
+  }, [activeOutcome.outcome_index, activeOutcome.outcome_text, showBothOutcomes, yesOutcomeLabel, noOutcomeLabel, normalizeOutcomeLabel])
 
-  const activeSeriesKey = showBothOutcomes
-    ? (activeOutcomeIndex === OUTCOME_INDEX.NO ? 'no' : 'yes')
-    : 'value'
-  const primarySeriesColor = showBothOutcomes
-    ? (activeOutcomeIndex === OUTCOME_INDEX.NO ? NO_SERIES_COLOR : YES_SERIES_COLOR)
-    : (series[0]?.color ?? YES_SERIES_COLOR)
-  const hoveredValue = cursorSnapshot?.values?.[activeSeriesKey]
-  const latestValue = useMemo(() => {
+  const chartSignature = useMemo(function buildChartSignature() {
+    return `${conditionId}:${activeOutcomeIndex}:${activeTimeRange}:${showBothOutcomes ? 'both' : 'single'}`
+  }, [conditionId, activeOutcomeIndex, activeTimeRange, showBothOutcomes])
+
+  const latestValue = useMemo(function findLatestChartValue() {
     for (let index = chartData.length - 1; index >= 0; index -= 1) {
       const point = chartData[index]
       if (!point) {
@@ -194,10 +193,8 @@ export default function MarketOutcomeGraph({
     }
     return null
   }, [chartData, activeSeriesKey, showBothOutcomes])
-  const resolvedValue = typeof hoveredValue === 'number' && Number.isFinite(hoveredValue)
-    ? hoveredValue
-    : latestValue
-  const baselineValue = useMemo(() => {
+
+  const baselineValue = useMemo(function findBaselineChartValue() {
     for (const point of chartData) {
       const value = showBothOutcomes
         ? (activeSeriesKey === 'yes' && 'yes' in point
@@ -213,6 +210,80 @@ export default function MarketOutcomeGraph({
     }
     return null
   }, [chartData, activeSeriesKey, showBothOutcomes])
+
+  return { chartData, series, chartSignature, latestValue, baselineValue }
+}
+
+export default function MarketOutcomeGraph({
+  market,
+  outcome,
+  allMarkets,
+  currentTimestamp,
+  eventCreatedAt,
+  isMobile,
+}: MarketOutcomeGraphProps) {
+  const t = useExtracted()
+  const site = useSiteIdentity()
+  const normalizeOutcomeLabel = useOutcomeLabel()
+  const [activeTimeRange, setActiveTimeRange] = useState<TimeRange>('ALL')
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
+  const marketTargets = useMemo(() => buildMarketTargets(allMarkets), [allMarkets])
+  const { width: windowWidth } = useWindowSize()
+  const chartWidth = isMobile ? ((windowWidth || 400) * 0.84) : Math.min((windowWidth ?? 1440) * 0.55, 900)
+  const { chartSettings, handleChartSettingsChange } = useChartSettingsStore()
+  const { activeOutcomeIndex, activeOutcome, oppositeOutcome, handleShuffleOutcome } = useOutcomeSelection({ market, outcome })
+  const showOutcomeSwitch = market.outcomes.length > 1
+    && oppositeOutcome.outcome_index !== activeOutcome.outcome_index
+  const showBothOutcomes = chartSettings.bothOutcomes && showOutcomeSwitch
+  const yesOutcomeLabel = normalizeOutcomeLabel(
+    market.outcomes.find(item => item.outcome_index === OUTCOME_INDEX.YES)?.outcome_text,
+  ) ?? t('Yes')
+  const noOutcomeLabel = normalizeOutcomeLabel(
+    market.outcomes.find(item => item.outcome_index === OUTCOME_INDEX.NO)?.outcome_text,
+  ) ?? t('No')
+
+  const { normalizedHistory } = useEventPriceHistory({
+    eventId: market.event_id,
+    range: activeTimeRange,
+    targets: marketTargets,
+    eventCreatedAt,
+  })
+  const leadingGapStart = normalizedHistory[0]?.date ?? null
+
+  const activeSeriesKey: 'yes' | 'no' | 'value' = showBothOutcomes
+    ? (activeOutcomeIndex === OUTCOME_INDEX.NO ? 'no' : 'yes')
+    : 'value'
+
+  const { chartData, series, chartSignature, latestValue, baselineValue } = useChartDataValues({
+    normalizedHistory,
+    conditionId: market.condition_id,
+    activeOutcomeIndex,
+    activeTimeRange,
+    showBothOutcomes,
+    activeSeriesKey,
+    activeOutcome,
+    yesOutcomeLabel,
+    noOutcomeLabel,
+    normalizeOutcomeLabel,
+  })
+  const { cursorSnapshot, handleCursorDataChange } = useChartCursor(chartSignature)
+  const hasChartData = chartData.length > 0
+  const watermark = useMemo(
+    () => ({
+      iconSvg: site.logoSvg,
+      label: site.name,
+    }),
+    [site.logoSvg, site.name],
+  )
+
+  const primarySeriesColor = showBothOutcomes
+    ? (activeOutcomeIndex === OUTCOME_INDEX.NO ? NO_SERIES_COLOR : YES_SERIES_COLOR)
+    : (series[0]?.color ?? YES_SERIES_COLOR)
+  const hoveredValue = cursorSnapshot?.values?.[activeSeriesKey]
+  const resolvedValue = typeof hoveredValue === 'number' && Number.isFinite(hoveredValue)
+    ? hoveredValue
+    : latestValue
   const currentValue = resolvedValue
 
   return (
