@@ -10,8 +10,6 @@ import { useAppKit } from '@/hooks/useAppKit'
 import { cn } from '@/lib/utils'
 import { useUser } from '@/stores/useUser'
 
-const headerIconButtonClass = 'size-10 rounded-sm border border-transparent bg-transparent text-foreground transition-colors hover:bg-muted/80 focus-visible:ring-1 focus-visible:ring-ring md:size-9'
-
 interface EventBookmarkProps {
   event: Event
   refreshStatusOnMount?: boolean
@@ -81,7 +79,7 @@ function updateEventsQueryData(
 
   let hasChanges = false
   const nextPages = currentData.pages.map((page) => {
-    const nextPage = page.flatMap((entry) => {
+    return page.flatMap((entry) => {
       if (entry.id !== event.id) {
         return [entry]
       }
@@ -94,8 +92,6 @@ function updateEventsQueryData(
 
       return [{ ...entry, is_bookmarked: nextBookmarkedState }]
     })
-
-    return nextPage
   })
 
   if (!hasChanges) {
@@ -260,8 +256,12 @@ export default function EventBookmark({
       aria-pressed={isBookmarked}
       title={isBookmarked ? 'Remove Bookmark' : 'Bookmark'}
       className={cn(
-        headerIconButtonClass,
-        'size-auto p-0',
+        `
+          size-auto rounded-sm border border-transparent bg-transparent p-0 text-foreground transition-colors
+          hover:bg-muted/80
+          focus-visible:ring-1 focus-visible:ring-ring
+          md:size-9
+        `,
         { 'opacity-50': isSubmitting },
       )}
     >
