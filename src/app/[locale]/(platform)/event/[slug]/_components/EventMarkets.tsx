@@ -118,7 +118,7 @@ function useTweetMarketResolution({
     return Number.isFinite(parsedEndMs) && currentTimestamp >= parsedEndMs
   }, [currentTimestamp, event.end_date, xtrackerTweetCountQuery.data?.trackingEndMs])
 
-  const resolveResolvedOutcomeIndex = useCallback(function resolveResolvedOutcomeIndex(market: Event['markets'][number]) {
+  const resolveResolvedOutcomeIndex = useCallback((market: Event['markets'][number]) => {
     if (!isMarketResolved(market)) {
       return null
     }
@@ -249,13 +249,13 @@ function useCashOutFlow({
     })
   }, [isMobile, orderBookQuery, orderBookSummaries, setAmount, setIsMobileOrderPanelOpen, setMarket, setOutcome, setSide, setType])
 
-  const handleCashOutModalChange = useCallback(function handleCashOutModalChange(open: boolean) {
+  const handleCashOutModalChange = useCallback((open: boolean) => {
     if (!open) {
       setCashOutPayload(null)
     }
   }, [])
 
-  const handleCashOutSubmit = useCallback(function handleCashOutSubmit(sharesToSell: number) {
+  const handleCashOutSubmit = useCallback((sharesToSell: number) => {
     if (!(sharesToSell > 0)) {
       return
     }
@@ -265,7 +265,7 @@ function useCashOutFlow({
     form?.requestSubmit()
   }, [setAmount])
 
-  const dismissCashOut = useCallback(function dismissCashOut() {
+  const dismissCashOut = useCallback(() => {
     setCashOutPayload(null)
   }, [])
 
@@ -291,7 +291,7 @@ function useMarketInteractionHandlers({
   setIsMobileOrderPanelOpen: (value: boolean) => void
   inputRef: React.RefObject<HTMLInputElement | null> | null | undefined
 }) {
-  const handleToggle = useCallback(function handleToggle(market: Event['markets'][number]) {
+  const handleToggle = useCallback((market: Event['markets'][number]) => {
     toggleMarket(market.condition_id)
     setMarket(market)
     setSide(ORDER_SIDE.BUY)
@@ -304,11 +304,11 @@ function useMarketInteractionHandlers({
     }
   }, [toggleMarket, selectedOutcome, setMarket, setOutcome, setSide])
 
-  const handleBuy = useCallback(function handleBuy(
+  const handleBuy = useCallback((
     market: Event['markets'][number],
     outcomeIndex: number,
     source: 'mobile' | 'desktop',
-  ) {
+  ) => {
     expandMarket(market.condition_id)
     setMarket(market)
     const outcome = market.outcomes[outcomeIndex]

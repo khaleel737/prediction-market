@@ -237,9 +237,9 @@ function useDebugCopy(event: Event) {
     }
   }, [debugPayload])
 
-  const maybeHandleDebugCopy = useCallback(function maybeHandleDebugCopy(
+  const maybeHandleDebugCopy = useCallback((
     triggerEvent: React.MouseEvent | React.PointerEvent,
-  ) {
+  ) => {
     if (!triggerEvent.altKey) {
       return false
     }
@@ -254,7 +254,7 @@ function useDebugCopy(event: Event) {
 }
 
 function useShareUrlBuilder(affiliateCode: string) {
-  return useCallback(function buildShareUrl(path: string) {
+  return useCallback((path: string) => {
     const url = new URL(path, window.location.origin)
     if (affiliateCode) {
       url.searchParams.set('r', affiliateCode)
