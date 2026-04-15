@@ -5,7 +5,7 @@ import type { FilterState } from '@/app/[locale]/(platform)/_providers/FilterPro
 import type { Event } from '@/types'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { useLocale } from 'next-intl'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import EventCardSkeleton from '@/app/[locale]/(platform)/(home)/_components/EventCardSkeleton'
 import EventsGridSkeleton from '@/app/[locale]/(platform)/(home)/_components/EventsGridSkeleton'
 import EventsStaticGrid from '@/app/[locale]/(platform)/(home)/_components/EventsStaticGrid'
@@ -16,6 +16,7 @@ import { buildMarketTargets } from '@/app/[locale]/(platform)/event/[slug]/_hook
 import { useColumns } from '@/hooks/useColumns'
 import { useCurrentTimestamp } from '@/hooks/useCurrentTimestamp'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useHasHydrated } from '@/hooks/useHasHydrated'
 import { fetchEventsApi } from '@/lib/events-api'
 import { HOME_EVENTS_PAGE_SIZE, isHomeEventResolvedLike } from '@/lib/home-events'
 import { resolveDisplayPrice } from '@/lib/market-chance'
@@ -90,18 +91,6 @@ function setHydratedEventsSnapshot(key: string, events: Event[]) {
   }
 }
 
-function subscribeToHydrationStore() {
-  return function unsubscribeFromHydrationStore() {}
-}
-
-function getHydratedClientSnapshot() {
-  return true
-}
-
-function getHydratedServerSnapshot() {
-  return false
-}
-
 async function fetchEvents({
   pageParam = 0,
   currentTimestamp,
@@ -128,14 +117,6 @@ async function fetchEvents({
     hideCrypto: filters.hideCrypto,
     hideEarnings: filters.hideEarnings,
   })
-}
-
-function useHasHydrated() {
-  return useSyncExternalStore(
-    subscribeToHydrationStore,
-    getHydratedClientSnapshot,
-    getHydratedServerSnapshot,
-  )
 }
 
 interface UseEventsRefetchOnTimestampParams {
