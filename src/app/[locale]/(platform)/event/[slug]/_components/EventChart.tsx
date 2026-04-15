@@ -165,7 +165,7 @@ function useChartSettingsFromStore() {
     getStoredChartSettingsServerSnapshot,
   )
 
-  const handleChartSettingsChange = useCallback(function handleChartSettingsChange(nextValue: SetStateAction<ChartSettings>) {
+  const handleChartSettingsChange = useCallback((nextValue: SetStateAction<ChartSettings>) => {
     const nextSettings = typeof nextValue === 'function'
       ? nextValue(chartSettings)
       : nextValue
@@ -189,7 +189,7 @@ function useChartCursorTracking(chartScopeKey: string) {
     ? cursorState.snapshot
     : null
 
-  const handleCursorDataChange = useCallback(function handleCursorDataChange(snapshot: PredictionChartCursorSnapshot | null) {
+  const handleCursorDataChange = useCallback((snapshot: PredictionChartCursorSnapshot | null) => {
     setCursorState({
       scopeKey: chartScopeKey,
       snapshot,
@@ -291,7 +291,7 @@ function useMarketSelection({
       : resolveSelectedMarketIds(activeCustomMarketIds, allMarketIds, defaultMarketIds)
   }, [activeCustomMarketIds, allMarketIds, defaultMarketIds, isSingleMarket])
 
-  const handleToggleMarket = useCallback(function handleToggleMarket(marketId: string) {
+  const handleToggleMarket = useCallback((marketId: string) => {
     if (isSingleMarket) {
       return
     }

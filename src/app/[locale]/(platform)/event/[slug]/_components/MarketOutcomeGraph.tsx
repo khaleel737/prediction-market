@@ -57,9 +57,9 @@ function useChartSettingsStore() {
     getStoredChartSettingsServerSnapshot,
   )
 
-  const handleChartSettingsChange = useCallback(function handleChartSettingsChange(
+  const handleChartSettingsChange = useCallback((
     nextSettings: ChartSettings | ((current: ChartSettings) => ChartSettings),
-  ) {
+  ) => {
     const resolvedSettings = typeof nextSettings === 'function'
       ? nextSettings(chartSettings)
       : nextSettings
@@ -99,7 +99,7 @@ function useOutcomeSelection({
     return market.outcomes.find(item => item.outcome_index === oppositeOutcomeIndex) ?? activeOutcome
   }, [market.outcomes, oppositeOutcomeIndex, activeOutcome])
 
-  const handleShuffleOutcome = useCallback(function handleShuffleOutcome() {
+  const handleShuffleOutcome = useCallback(() => {
     setActiveOutcomeOverride({
       key: activeOutcomeKey,
       index: oppositeOutcome.outcome_index,
@@ -117,9 +117,9 @@ function useChartCursor(chartSignature: string) {
 
   const cursorSnapshot = cursorState.key === chartSignature ? cursorState.snapshot : null
 
-  const handleCursorDataChange = useCallback(function handleCursorDataChange(
+  const handleCursorDataChange = useCallback((
     nextSnapshot: PredictionChartCursorSnapshot | null,
-  ) {
+  ) => {
     setCursorState({ key: chartSignature, snapshot: nextSnapshot })
   }, [chartSignature])
 
