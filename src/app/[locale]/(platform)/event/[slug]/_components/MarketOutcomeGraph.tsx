@@ -79,7 +79,7 @@ function useOutcomeSelection({
   const [activeOutcomeOverride, setActiveOutcomeOverride] = useState<{ key: string, index: number } | null>(null)
 
   const activeOutcomeKey = outcome.token_id || `${market.condition_id}:${outcome.outcome_index}`
-  const activeOutcomeIndex = useMemo(function resolveActiveOutcomeIndex() {
+  const activeOutcomeIndex = useMemo(() => {
     if (activeOutcomeOverride?.key === activeOutcomeKey) {
       return activeOutcomeOverride.index
     }
@@ -87,7 +87,7 @@ function useOutcomeSelection({
     return outcome.outcome_index
   }, [activeOutcomeKey, activeOutcomeOverride, outcome.outcome_index])
 
-  const activeOutcome = useMemo(function resolveActiveOutcome() {
+  const activeOutcome = useMemo(() => {
     return market.outcomes.find(item => item.outcome_index === activeOutcomeIndex) ?? outcome
   }, [market.outcomes, activeOutcomeIndex, outcome])
 
@@ -95,7 +95,7 @@ function useOutcomeSelection({
     ? OUTCOME_INDEX.NO
     : OUTCOME_INDEX.YES
 
-  const oppositeOutcome = useMemo(function resolveOppositeOutcome() {
+  const oppositeOutcome = useMemo(() => {
     return market.outcomes.find(item => item.outcome_index === oppositeOutcomeIndex) ?? activeOutcome
   }, [market.outcomes, oppositeOutcomeIndex, activeOutcome])
 
@@ -149,13 +149,13 @@ function useChartDataValues({
   noOutcomeLabel: string
   normalizeOutcomeLabel: (value: string | null | undefined) => string | undefined
 }) {
-  const chartData = useMemo(function buildResolvedChartData() {
+  const chartData = useMemo(() => {
     return showBothOutcomes
       ? buildComparisonChartData(normalizedHistory, conditionId)
       : buildChartData(normalizedHistory, conditionId, activeOutcomeIndex)
   }, [normalizedHistory, conditionId, activeOutcomeIndex, showBothOutcomes])
 
-  const series = useMemo(function buildChartSeries() {
+  const series = useMemo(() => {
     return showBothOutcomes
       ? [
           { key: 'yes', name: yesOutcomeLabel, color: YES_SERIES_COLOR },
@@ -168,11 +168,11 @@ function useChartDataValues({
         }]
   }, [activeOutcome.outcome_index, activeOutcome.outcome_text, showBothOutcomes, yesOutcomeLabel, noOutcomeLabel, normalizeOutcomeLabel])
 
-  const chartSignature = useMemo(function buildChartSignature() {
+  const chartSignature = useMemo(() => {
     return `${conditionId}:${activeOutcomeIndex}:${activeTimeRange}:${showBothOutcomes ? 'both' : 'single'}`
   }, [conditionId, activeOutcomeIndex, activeTimeRange, showBothOutcomes])
 
-  const latestValue = useMemo(function findLatestChartValue() {
+  const latestValue = useMemo(() => {
     for (let index = chartData.length - 1; index >= 0; index -= 1) {
       const point = chartData[index]
       if (!point) {
@@ -194,7 +194,7 @@ function useChartDataValues({
     return null
   }, [chartData, activeSeriesKey, showBothOutcomes])
 
-  const baselineValue = useMemo(function findBaselineChartValue() {
+  const baselineValue = useMemo(() => {
     for (const point of chartData) {
       const value = showBothOutcomes
         ? (activeSeriesKey === 'yes' && 'yes' in point

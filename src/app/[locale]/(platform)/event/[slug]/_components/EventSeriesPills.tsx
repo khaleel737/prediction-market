@@ -196,7 +196,7 @@ function useSeriesNavigation({
   seriesEvents: EventSeriesEntry[]
   nowTimestamp: number
 }) {
-  return useMemo(function resolveSeriesNavigation() {
+  return useMemo(() => {
     const filteredSeriesEvents = seriesEvents.filter(event => Boolean(event?.slug))
     const hasComparableSeriesEvents = filteredSeriesEvents.some(event => event.slug !== currentEventSlug)
     const currentEvent = filteredSeriesEvents.find(event => event.slug === currentEventSlug) ?? null

@@ -158,23 +158,23 @@ function useEmbedCodeBuilders({
   affiliateCode: string
   iframeHeight: number
 }) {
-  const features = useMemo(function buildEmbedFeatures() {
+  const features = useMemo(() => {
     return buildFeatureList(showVolume, showChart, effectiveShowTimeRange)
   }, [showVolume, showChart, effectiveShowTimeRange])
 
-  const iframeSrc = useMemo(function buildEmbedIframeSrc() {
+  const iframeSrc = useMemo(() => {
     return buildIframeSrc(embedBaseUrl, marketSlug, theme, features, affiliateCode)
   }, [embedBaseUrl, marketSlug, theme, features, affiliateCode])
 
-  const previewSrc = useMemo(function buildEmbedPreviewSrc() {
+  const previewSrc = useMemo(() => {
     return buildPreviewSrc(marketSlug, theme, features, affiliateCode)
   }, [marketSlug, theme, features, affiliateCode])
 
-  const iframeCode = useMemo(function buildEmbedIframeCode() {
+  const iframeCode = useMemo(() => {
     return buildIframeCode(iframeSrc, iframeHeight, embedIframeTitle)
   }, [embedIframeTitle, iframeSrc, iframeHeight])
 
-  const webComponentCode = useMemo(function buildEmbedWebComponentCode() {
+  const webComponentCode = useMemo(() => {
     return buildWebComponentCode(
       embedElementName,
       marketSlug,
@@ -186,7 +186,7 @@ function useEmbedCodeBuilders({
     )
   }, [embedElementName, marketSlug, theme, showVolume, showChart, effectiveShowTimeRange, affiliateCode])
 
-  const iframeLines = useMemo<EmbedCodeLine[]>(function buildEmbedIframeLines() {
+  const iframeLines = useMemo<EmbedCodeLine[]>(() => {
     return [
       tagOpenLine('', 'iframe'),
       attributeLine('\t', 'title', embedIframeTitle),
@@ -198,7 +198,7 @@ function useEmbedCodeBuilders({
     ]
   }, [embedIframeTitle, iframeSrc, iframeHeight])
 
-  const webComponentLines = useMemo<EmbedCodeLine[]>(function buildEmbedWebComponentLines() {
+  const webComponentLines = useMemo<EmbedCodeLine[]>(() => {
     const lines: EmbedCodeLine[] = [
       tagWithAttributeLine('', 'div', 'id', embedElementName, '>'),
       tagOpenLine('\t', 'script'),
@@ -267,7 +267,7 @@ function EventChartEmbedDialogEditor({
   const showMarketSelector = markets.length > 1
   const showTimeRangeSelector = showChart
   const effectiveShowTimeRange = showChart && showTimeRange
-  const siteSlug = useMemo(function resolveSiteSlug() {
+  const siteSlug = useMemo(() => {
     try {
       return slugifySiteName(site.name)
     }
@@ -279,7 +279,7 @@ function EventChartEmbedDialogEditor({
   const embedElementName = `${siteSlug}-market-embed`
   const embedIframeTitle = `${siteSlug}-market-iframe`
 
-  const marketOptions = useMemo(function buildMarketOptions() {
+  const marketOptions = useMemo(() => {
     return markets.map(market => ({
       id: market.condition_id,
       label: buildMarketLabel(market),
