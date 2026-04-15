@@ -1252,18 +1252,6 @@ function useLiveChartComputations({
   }
 }
 
-function useWatermarkIdentity() {
-  const site = useSiteIdentity()
-  return useMemo(
-    () => ({
-      iconSvg: site.logoSvg,
-      iconImageUrl: site.logoImageUrl,
-      label: site.name,
-    }),
-    [site.logoImageUrl, site.logoSvg, site.name],
-  )
-}
-
 function RollingCountdownDigit({ digit }: { digit: number }) {
   const {
     currentDigit,
@@ -1521,7 +1509,12 @@ function EventLiveSeriesChartContent({
   })
 
   const { etDateLabel, etTimeLabel, utcDateLabel, utcTimeLabel } = useResolutionTimeLabels(endTimestamp)
-  const watermark = useWatermarkIdentity()
+  const site = useSiteIdentity()
+  const watermark = {
+    iconSvg: site.logoSvg,
+    iconImageUrl: site.logoImageUrl,
+    label: site.name,
+  }
 
   const liveSwitchIconStyle = isLiveChartView
     ? {
