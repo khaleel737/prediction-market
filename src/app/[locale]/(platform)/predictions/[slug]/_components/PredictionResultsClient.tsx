@@ -1,5 +1,6 @@
 'use client'
 
+import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query'
 import type { Route } from 'next'
 import type {
   PredictionResultsSortOption,
@@ -331,7 +332,7 @@ function usePredictionResultsQuery({
   setInfiniteScrollErrorState,
 }: {
   canRetryLoadMore: boolean
-  fetchNextPage: () => Promise<any>
+  fetchNextPage: UseInfiniteQueryResult<InfiniteData<Event[]>, Error>['fetchNextPage']
   hasNextPage: boolean
   infiniteScrollScopeKey: string
   isFetchingNextPage: boolean
