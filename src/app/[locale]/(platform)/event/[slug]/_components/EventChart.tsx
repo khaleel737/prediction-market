@@ -4,25 +4,28 @@ import type { SetStateAction } from 'react'
 import type { ChartSettings } from './EventChartControls'
 import type { TimeRange } from '@/app/[locale]/(platform)/event/[slug]/_hooks/useEventPriceHistory'
 import type { EventChartProps } from '@/app/[locale]/(platform)/event/[slug]/_types/EventChartTypes'
-import type { ActivityOrder, Event, Market } from '@/types'
 import type {
   DataPoint,
-  PredictionChartAnnotationMarker,
   PredictionChartCursorSnapshot,
-  PredictionChartProps,
   SeriesConfig,
 } from '@/types/PredictionChartTypes'
-import { useQuery } from '@tanstack/react-query'
-import dynamic from 'next/dynamic'
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { useMarketChannelSubscription } from '@/app/[locale]/(platform)/event/[slug]/_components/EventMarketChannelProvider'
+import { memo, useCallback, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEventChartAnnotations } from '@/app/[locale]/(platform)/event/[slug]/_hooks/useEventChartAnnotations'
+import { useEventChartTradeFlow } from '@/app/[locale]/(platform)/event/[slug]/_hooks/useEventChartTradeFlow'
 import { useEventMarketChanceData } from '@/app/[locale]/(platform)/event/[slug]/_hooks/useEventMarketChanceData'
 import {
   buildMarketTargets,
-  TIME_RANGES,
   useEventPriceHistory,
 } from '@/app/[locale]/(platform)/event/[slug]/_hooks/useEventPriceHistory'
 import { useXTrackerTweetCount } from '@/app/[locale]/(platform)/event/[slug]/_hooks/useXTrackerTweetCount'
+import {
+  buildCombinedOutcomeHistory,
+  getOutcomeTokenIds,
+  parseTimestampToMs,
+  resolveSelectedMarketIds,
+  resolveTweetCount,
+  resolveTweetCountdownTargetMs,
+} from '@/app/[locale]/(platform)/event/[slug]/_utils/eventChartInternalHelpers'
 import {
   buildChartSeries,
   buildMarketSignature,
@@ -33,17 +36,12 @@ import {
   resolveEventHistoryEndAt,
 } from '@/app/[locale]/(platform)/event/[slug]/_utils/EventChartUtils'
 import { isTweetMarketsEvent } from '@/app/[locale]/(platform)/event/[slug]/_utils/eventTweetMarkets'
-import EventIconImage from '@/components/EventIconImage'
 import SiteLogoIcon from '@/components/SiteLogoIcon'
 import { useCurrentTimestamp } from '@/hooks/useCurrentTimestamp'
-import { useOutcomeLabel } from '@/hooks/useOutcomeLabel'
 import { useSiteIdentity } from '@/hooks/useSiteIdentity'
 import { useWindowSize } from '@/hooks/useWindowSize'
 import { OUTCOME_INDEX } from '@/lib/constants'
-import { fetchUserActivityData, mapDataApiActivityToActivityOrder } from '@/lib/data-api/user'
-import { formatCurrency, formatSharePriceLabel, formatSharesLabel, fromMicro } from '@/lib/formatters'
 import { getUserPublicAddress } from '@/lib/user-address'
-import { cn } from '@/lib/utils'
 import { useIsSingleMarket } from '@/stores/useOrder'
 import { useUser } from '@/stores/useUser'
 import {
@@ -52,324 +50,14 @@ import {
   storeChartSettings,
   subscribeToChartSettings,
 } from '../_utils/chartSettingsStorage'
-import EventChartControls from './EventChartControls'
+import EventChartCanvas from './EventChartCanvas'
+import EventChartControlsBar from './EventChartControlsBar'
 import EventChartEmbedDialog from './EventChartEmbedDialog'
 import EventChartExportDialog from './EventChartExportDialog'
 import EventChartHeader from './EventChartHeader'
 import EventChartLayout from './EventChartLayout'
+import EventChartLegend from './EventChartLegend'
 import EventMetaInformation from './EventMetaInformation'
-
-interface TradeFlowLabelItem {
-  id: string
-  label: string
-  outcome: 'yes' | 'no'
-  createdAt: number
-}
-
-const tradeFlowMaxItems = 6
-const tradeFlowTtlMs = 8000
-const tradeFlowCleanupIntervalMs = 500
-const CHART_MARKER_ACTIVITY_PAGE_SIZE = 50
-const CHART_MARKER_MAX_PAGES_PER_MARKET = 10
-const EVENT_PLOT_CLIP_RIGHT_PADDING = 18
-const TWEET_COUNT_METADATA_KEYS = [
-  'tweet_count',
-  'tweetCount',
-  'tweets_count',
-  'tweetsCount',
-  'mention_count',
-  'mentionCount',
-  'mentions_count',
-  'mentionsCount',
-] as const
-const tradeFlowTextStrokeStyle = {
-  textShadow: `
-    1px 0 0 var(--background),
-    -1px 0 0 var(--background),
-    0 1px 0 var(--background),
-    0 -1px 0 var(--background),
-    1px 1px 0 var(--background),
-    -1px -1px 0 var(--background),
-    1px -1px 0 var(--background),
-    -1px 1px 0 var(--background)
-  `,
-} as const
-
-async function fetchUserTradeActivityForConditionIds(params: {
-  userAddress: string
-  conditionIds: string[]
-  signal?: AbortSignal
-}) {
-  const { userAddress, conditionIds, signal } = params
-  if (!userAddress || conditionIds.length === 0) {
-    return [] as ActivityOrder[]
-  }
-
-  const collected: ActivityOrder[] = []
-
-  for (const conditionId of conditionIds) {
-    let offset = 0
-
-    for (let page = 0; page < CHART_MARKER_MAX_PAGES_PER_MARKET; page += 1) {
-      if (signal?.aborted) {
-        throw new DOMException('Aborted', 'AbortError')
-      }
-
-      const response = await fetchUserActivityData({
-        pageParam: offset,
-        userAddress,
-        conditionId,
-        signal,
-      })
-      const mapped = response.map(mapDataApiActivityToActivityOrder)
-      const trades = mapped.filter(activity =>
-        activity.type === 'trade' && activity.market.condition_id === conditionId)
-
-      collected.push(...trades)
-
-      if (response.length < CHART_MARKER_ACTIVITY_PAGE_SIZE) {
-        break
-      }
-
-      offset += response.length
-    }
-  }
-
-  const deduped = new Map<string, ActivityOrder>()
-  collected.forEach((activity) => {
-    const existing = deduped.get(activity.id)
-    if (!existing) {
-      deduped.set(activity.id, activity)
-      return
-    }
-
-    if (new Date(activity.created_at).getTime() > new Date(existing.created_at).getTime()) {
-      deduped.set(activity.id, activity)
-    }
-  })
-
-  return Array.from(deduped.values()).sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  )
-}
-
-const PredictionChart = dynamic<PredictionChartProps>(
-  () => import('@/components/PredictionChart'),
-  { ssr: false, loading: () => <div className="h-83 w-full" /> },
-)
-
-function getOutcomeTokenIds(market: Market | null) {
-  if (!market) {
-    return null
-  }
-  const yesOutcome = market.outcomes.find(outcome => outcome.outcome_index === OUTCOME_INDEX.YES)
-  const noOutcome = market.outcomes.find(outcome => outcome.outcome_index === OUTCOME_INDEX.NO)
-
-  if (!yesOutcome?.token_id || !noOutcome?.token_id) {
-    return null
-  }
-
-  return {
-    yesTokenId: String(yesOutcome.token_id),
-    noTokenId: String(noOutcome.token_id),
-  }
-}
-
-function buildTradeFlowLabel(price: number, size: number) {
-  const notional = price * size
-  if (!Number.isFinite(notional) || notional <= 0) {
-    return null
-  }
-  return formatSharePriceLabel(notional / 100, { fallback: '0¢', currencyDigits: 0 })
-}
-
-function resolveOutcomeIconUrl(iconUrl?: string | null) {
-  if (!iconUrl) {
-    return ''
-  }
-
-  const trimmed = iconUrl.trim()
-  if (!trimmed) {
-    return ''
-  }
-
-  return trimmed.startsWith('http') ? trimmed : `https://gateway.irys.xyz/${trimmed}`
-}
-
-function pruneTradeFlowItems(items: TradeFlowLabelItem[], now: number) {
-  return items.filter(item => now - item.createdAt <= tradeFlowTtlMs)
-}
-
-function trimTradeFlowItems(items: TradeFlowLabelItem[]) {
-  return items.slice(-tradeFlowMaxItems)
-}
-
-function resolveSelectedMarketIds(
-  customSelectedMarketIds: string[] | null,
-  allMarketIds: string[],
-  defaultMarketIds: string[],
-) {
-  const allMarketIdSet = new Set(allMarketIds)
-  const filteredCustomIds = customSelectedMarketIds?.filter(id => allMarketIdSet.has(id)) ?? []
-
-  return filteredCustomIds.length > 0 ? filteredCustomIds : defaultMarketIds
-}
-
-function parseTimestampToMs(value: string | null | undefined): number | null {
-  if (!value) {
-    return null
-  }
-
-  const parsed = Date.parse(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function parseCountValue(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value >= 0 ? value : null
-  }
-
-  if (typeof value === 'string') {
-    const normalized = value.replaceAll(',', '').trim()
-    if (!normalized) {
-      return null
-    }
-
-    const parsed = Number(normalized)
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      return parsed
-    }
-  }
-
-  return null
-}
-
-function resolveTweetCountFromRecord(record: Record<string, unknown> | null | undefined): number | null {
-  if (!record) {
-    return null
-  }
-
-  for (const key of TWEET_COUNT_METADATA_KEYS) {
-    const parsed = parseCountValue(record[key])
-    if (parsed != null) {
-      return parsed
-    }
-  }
-
-  return null
-}
-
-function resolveTweetCount(event: Event): number | null {
-  const fromEvent = resolveTweetCountFromRecord(event as unknown as Record<string, unknown>)
-  if (fromEvent != null) {
-    return fromEvent
-  }
-
-  for (const market of event.markets) {
-    if (!market.metadata || typeof market.metadata !== 'object') {
-      continue
-    }
-
-    const fromMarket = resolveTweetCountFromRecord(market.metadata as Record<string, unknown>)
-    if (fromMarket != null) {
-      return fromMarket
-    }
-  }
-
-  return null
-}
-
-function resolveTweetCountdownTargetMs(event: Event): number | null {
-  const eventEndMs = parseTimestampToMs(event.end_date)
-  if (eventEndMs != null) {
-    return eventEndMs
-  }
-
-  const marketEndTimes = event.markets
-    .map(market => parseTimestampToMs(market.end_time ?? null))
-    .filter((timestamp): timestamp is number => timestamp != null)
-
-  if (marketEndTimes.length === 0) {
-    return null
-  }
-
-  return Math.min(...marketEndTimes)
-}
-
-function buildCombinedOutcomeHistory(
-  yesHistory: DataPoint[],
-  noHistory: DataPoint[],
-  conditionId: string,
-  yesKey: string,
-  noKey: string,
-) {
-  if (!conditionId) {
-    return { points: [], latestSnapshot: {} as Record<string, number> }
-  }
-
-  const yesByTimestamp = new Map<number, number>()
-  const noByTimestamp = new Map<number, number>()
-
-  yesHistory.forEach((point) => {
-    const value = point[conditionId]
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      yesByTimestamp.set(point.date.getTime(), value)
-    }
-  })
-
-  noHistory.forEach((point) => {
-    const value = point[conditionId]
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      noByTimestamp.set(point.date.getTime(), value)
-    }
-  })
-
-  const timestamps = Array.from(new Set([
-    ...yesByTimestamp.keys(),
-    ...noByTimestamp.keys(),
-  ])).sort((a, b) => a - b)
-
-  let lastYes: number | null = null
-  let lastNo: number | null = null
-  const points: DataPoint[] = []
-
-  timestamps.forEach((timestamp) => {
-    const yesValue = yesByTimestamp.get(timestamp)
-    const noValue = noByTimestamp.get(timestamp)
-    if (typeof yesValue === 'number') {
-      lastYes = yesValue
-    }
-    if (typeof noValue === 'number') {
-      lastNo = noValue
-    }
-    if (lastYes === null && lastNo === null) {
-      return
-    }
-    const point: DataPoint = { date: new Date(timestamp) }
-    if (lastYes !== null) {
-      point[yesKey] = lastYes
-    }
-    if (lastNo !== null) {
-      point[noKey] = lastNo
-    }
-    points.push(point)
-  })
-
-  const latestSnapshot: Record<string, number> = {}
-  const latestPoint = points.at(-1)
-  if (latestPoint) {
-    const yesValue = latestPoint[yesKey]
-    const noValue = latestPoint[noKey]
-    if (typeof yesValue === 'number' && Number.isFinite(yesValue)) {
-      latestSnapshot[yesKey] = yesValue
-    }
-    if (typeof noValue === 'number' && Number.isFinite(noValue)) {
-      latestSnapshot[noKey] = noValue
-    }
-  }
-
-  return { points, latestSnapshot }
-}
 
 function EventChartComponent({
   event,
@@ -381,7 +69,6 @@ function EventChartComponent({
   const site = useSiteIdentity()
   const user = useUser()
   const userAddress = getUserPublicAddress(user)
-  const normalizeOutcomeLabel = useOutcomeLabel()
   const isSingleMarket = useIsSingleMarket()
   const isNegRiskEnabled = Boolean(event.enable_neg_risk || event.neg_risk)
   const shouldHideChart = !isSingleMarket && !isNegRiskEnabled
@@ -402,18 +89,10 @@ function EventChartComponent({
     scopeKey: '',
     snapshot: null,
   })
-  const [tradeFlowState, setTradeFlowState] = useState<{
-    tokenKey: string
-    items: TradeFlowLabelItem[]
-  }>({
-    tokenKey: '',
-    items: [],
-  })
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
   const nowMs = useCurrentTimestamp({ intervalMs: 30_000 })
   const currentTimestampMs = nowMs ?? 0
-  const tradeFlowIdRef = useRef(0)
 
   const handleChartSettingsChange = useCallback((nextValue: SetStateAction<ChartSettings>) => {
     const nextSettings = typeof nextValue === 'function'
@@ -702,118 +381,23 @@ function EventChartComponent({
     })
     return Array.from(unique)
   }, [effectiveSeries, isSingleMarket, primaryConditionId, showBothOutcomes, userAddress])
-  const markerConditionSignature = useMemo(
-    () => markerConditionIds.slice().sort().join(','),
-    [markerConditionIds],
-  )
-  const { data: userTradeActivities = [] } = useQuery({
-    queryKey: ['event-chart-user-trade-markers', event.id, userAddress, markerConditionSignature],
-    queryFn: ({ signal }) => fetchUserTradeActivityForConditionIds({
-      userAddress: userAddress!,
-      conditionIds: markerConditionIds,
-      signal,
-    }),
-    enabled: Boolean(chartSettings.annotations && userAddress && markerConditionIds.length > 0),
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
+
+  const chartAnnotationMarkers = useEventChartAnnotations({
+    eventId: event.id,
+    userAddress,
+    markerConditionIds,
+    showBothOutcomes,
+    annotationsEnabled: chartSettings.annotations,
   })
-  const chartAnnotationMarkers = useMemo<PredictionChartAnnotationMarker[]>(() => {
-    if (!userTradeActivities.length) {
-      return []
-    }
 
-    return userTradeActivities.flatMap((activity, index) => {
-      const conditionId = activity.market.condition_id
-      if (!conditionId || !markerConditionIds.includes(conditionId)) {
-        return []
-      }
-
-      const createdAtTimestamp = new Date(activity.created_at).getTime()
-      if (!Number.isFinite(createdAtTimestamp)) {
-        return []
-      }
-
-      const rawPrice = Number(activity.price)
-      if (!Number.isFinite(rawPrice)) {
-        return []
-      }
-
-      const outcomeIndex = Number(activity.outcome.index)
-      const isYesOutcome = outcomeIndex === OUTCOME_INDEX.YES
-      const isNoOutcome = outcomeIndex === OUTCOME_INDEX.NO
-      if (!isYesOutcome && !isNoOutcome) {
-        return []
-      }
-
-      const normalizedLineValue = showBothOutcomes
-        ? rawPrice * 100
-        : (isNoOutcome ? (1 - rawPrice) * 100 : rawPrice * 100)
-
-      if (!Number.isFinite(normalizedLineValue)) {
-        return []
-      }
-
-      const sharesValue = Number.parseFloat(fromMicro(activity.amount, 4))
-      const sharesLabel = Number.isFinite(sharesValue)
-        ? formatSharesLabel(sharesValue)
-        : '—'
-      const outcomeLabel = normalizeOutcomeLabel(activity.outcome.text)
-      const actionLabel = activity.side === 'sell' ? 'Sold' : 'Bought'
-      const priceLabel = formatSharePriceLabel(rawPrice, { fallback: '—' })
-      const totalValue = Number.parseFloat(fromMicro(activity.total_value, 2))
-      const totalValueLabel = formatCurrency(Number.isFinite(totalValue) ? totalValue : 0, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-      const outcomeIconUrl = resolveOutcomeIconUrl(activity.market.icon_url)
-      const outcomeColorClass = isYesOutcome ? 'text-yes' : 'text-no'
-      const markerColor = isYesOutcome ? 'var(--color-yes)' : 'var(--color-no)'
-
-      return [{
-        id: `trade-${activity.id}-${createdAtTimestamp}-${index}`,
-        date: new Date(createdAtTimestamp),
-        value: normalizedLineValue,
-        color: markerColor,
-        radius: 3.6,
-        tooltipContent: (
-          <div className="flex items-center gap-2 text-xs whitespace-nowrap">
-            {outcomeIconUrl
-              ? (
-                  <EventIconImage
-                    src={outcomeIconUrl}
-                    alt={outcomeLabel}
-                    sizes="20px"
-                    containerClassName="size-5 rounded-full"
-                  />
-                )
-              : null}
-            <span className="font-semibold text-foreground">{actionLabel}</span>
-            <span className={cn('font-semibold', outcomeColorClass)}>
-              {sharesLabel}
-              {' '}
-              {outcomeLabel}
-            </span>
-            <span className="text-foreground">
-              at
-              {' '}
-              {priceLabel}
-            </span>
-            <span className="text-muted-foreground">
-              (
-              {totalValueLabel}
-              )
-            </span>
-          </div>
-        ),
-      }]
-    })
-  }, [markerConditionIds, normalizeOutcomeLabel, showBothOutcomes, userTradeActivities])
   const outcomeTokenIds = useMemo(
     () => {
       return getOutcomeTokenIds(primaryMarket)
     },
     [primaryMarket],
   )
+
+  const { tradeFlowItems } = useEventChartTradeFlow(outcomeTokenIds)
 
   const bothOutcomeHistory = useMemo(() => {
     if (!showBothOutcomes || !primaryConditionId) {
@@ -959,124 +543,9 @@ function EventChartComponent({
   const effectiveCurrentYesChance = isHovering
     ? cursorActiveChance
     : defaultCurrentYesChance
-  const outcomeTokenKey = outcomeTokenIds
-    ? `${outcomeTokenIds.yesTokenId}:${outcomeTokenIds.noTokenId}`
-    : ''
-  const tradeFlowItems = tradeFlowState.tokenKey === outcomeTokenKey
-    ? tradeFlowState.items
-    : []
-  const hasTradeFlowLabels = tradeFlowItems.length > 0
-
-  useMarketChannelSubscription((payload) => {
-    if (!outcomeTokenIds) {
-      return
-    }
-
-    if (payload?.event_type !== 'last_trade_price') {
-      return
-    }
-
-    const { yesTokenId, noTokenId } = outcomeTokenIds
-    const assetId = payload.asset_id
-    const price = Number(payload.price)
-    const size = Number(payload.size)
-    const label = buildTradeFlowLabel(price, size)
-
-    if (!label) {
-      return
-    }
-
-    let outcome: 'yes' | 'no' | null = null
-
-    if (assetId === yesTokenId) {
-      outcome = 'yes'
-    }
-
-    if (assetId === noTokenId) {
-      outcome = 'no'
-    }
-
-    if (!outcome) {
-      return
-    }
-
-    const createdAt = Date.now()
-    const id = String(tradeFlowIdRef.current)
-    tradeFlowIdRef.current += 1
-
-    setTradeFlowState((prev) => {
-      const activeItems = prev.tokenKey === outcomeTokenKey ? prev.items : []
-      const nextItems = trimTradeFlowItems(pruneTradeFlowItems([
-        ...activeItems,
-        { id, label, outcome, createdAt },
-      ], createdAt))
-
-      return {
-        tokenKey: outcomeTokenKey,
-        items: nextItems,
-      }
-    })
-  })
-
-  useEffect(() => {
-    if (!outcomeTokenKey || !hasTradeFlowLabels) {
-      return
-    }
-
-    const interval = window.setInterval(() => {
-      const now = Date.now()
-      setTradeFlowState((prev) => {
-        const activeItems = prev.tokenKey === outcomeTokenKey ? prev.items : []
-        const nextItems = pruneTradeFlowItems(activeItems, now)
-
-        if (nextItems.length === activeItems.length && prev.tokenKey === outcomeTokenKey) {
-          return prev
-        }
-
-        return {
-          tokenKey: outcomeTokenKey,
-          items: nextItems,
-        }
-      })
-    }, tradeFlowCleanupIntervalMs)
-
-    return () => {
-      window.clearInterval(interval)
-    }
-  }, [hasTradeFlowLabels, outcomeTokenKey])
 
   const legendContent = shouldRenderLegendEntries
-    ? (
-        <div className="flex min-h-5 flex-wrap items-center gap-x-3 gap-y-1.5 sm:gap-x-4 sm:gap-y-2">
-          {legendEntriesWithValues.map((entry) => {
-            const resolvedValue = entry.value as number
-            return (
-              <div key={entry.key} className="flex max-w-full items-center gap-2">
-                <div
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: entry.color }}
-                />
-                <span
-                  className="
-                    inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-medium
-                    text-muted-foreground
-                  "
-                >
-                  <span className="min-w-0 wrap-break-word">{entry.name}</span>
-                  <span className={`
-                    inline-flex min-w-8 shrink-0 items-baseline justify-end text-sm font-semibold whitespace-nowrap
-                    text-foreground tabular-nums
-                  `}
-                  >
-                    {resolvedValue.toFixed(0)}
-                    <span className="ml-0.5 text-sm text-foreground">%</span>
-                  </span>
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )
+    ? <EventChartLegend entries={legendEntries} />
     : null
 
   if (shouldHideChart) {
@@ -1114,80 +583,45 @@ function EventChartComponent({
           />
         )}
         chart={(
-          <div className="relative">
-            <PredictionChart
-              data={chartData}
-              series={legendSeries}
-              width={chartWidth}
-              height={332}
-              margin={{ top: 30, right: 40, bottom: 52, left: 0 }}
-              dataSignature={chartScopeKey}
-              onCursorDataChange={handleCursorDataChange}
-              xAxisTickCount={isMobile ? 2 : 4}
-              autoscale={chartSettings.autoscale}
-              showXAxis={chartSettings.xAxis}
-              showYAxis={chartSettings.yAxis}
-              showHorizontalGrid={chartSettings.horizontalGrid}
-              showVerticalGrid={chartSettings.verticalGrid}
-              showAnnotations={chartSettings.annotations && chartAnnotationMarkers.length > 0}
-              annotationMarkers={chartAnnotationMarkers}
-              leadingGapStart={leadingGapStart}
-              legendContent={legendContent}
-              showLegend={!isSingleMarket}
-              watermark={isSingleMarket ? undefined : watermark}
-              lineCurve="monotoneX"
-              plotClipPadding={{ right: EVENT_PLOT_CLIP_RIGHT_PADDING }}
-            />
-            {hasTradeFlowLabels
-              ? (
-                  <div className={`
-                    pointer-events-none absolute bottom-6 left-4 flex flex-col gap-1 text-sm font-semibold tabular-nums
-                  `}
-                  >
-                    {tradeFlowItems.map(item => (
-                      <span
-                        key={item.id}
-                        className={cn(`${item.outcome === 'yes' ? 'text-yes' : 'text-no'} animate-trade-flow-rise`)}
-                        style={tradeFlowTextStrokeStyle}
-                      >
-                        +
-                        {item.label}
-                      </span>
-                    ))}
-                  </div>
-                )
-              : null}
-          </div>
+          <EventChartCanvas
+            chartData={chartData}
+            legendSeries={legendSeries}
+            chartWidth={chartWidth}
+            chartScopeKey={chartScopeKey}
+            onCursorDataChange={handleCursorDataChange}
+            isMobile={isMobile}
+            isSingleMarket={isSingleMarket}
+            chartSettings={chartSettings}
+            chartAnnotationMarkers={chartAnnotationMarkers}
+            leadingGapStart={leadingGapStart}
+            legendContent={legendContent}
+            watermark={isSingleMarket ? undefined : watermark}
+            tradeFlowItems={tradeFlowItems}
+          />
         )}
         controls={showControls
           ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <EventMetaInformation event={event} currentTimestamp={nowMs || null} />
-                {hasChartData
-                  ? (
-                      <EventChartControls
-                        timeRanges={TIME_RANGES}
-                        activeTimeRange={activeTimeRange}
-                        onTimeRangeChange={setActiveTimeRange}
-                        showOutcomeSwitch={isSingleMarket}
-                        oppositeOutcomeLabel={oppositeOutcomeLabel}
-                        onShuffle={() => {
-                          setActiveOutcomeIndex(oppositeOutcomeIndex)
-                          handleCursorDataChange(null)
-                        }}
-                        showMarketSelector={!isSingleMarket}
-                        marketOptions={marketOptions}
-                        selectedMarketIds={selectedMarketIds}
-                        maxSeriesCount={maxSeriesCount}
-                        onToggleMarket={handleToggleMarket}
-                        settings={chartSettings}
-                        onSettingsChange={handleChartSettingsChange}
-                        onExportData={() => setExportDialogOpen(true)}
-                        onEmbed={() => setEmbedDialogOpen(true)}
-                      />
-                    )
-                  : null}
-              </div>
+              <EventChartControlsBar
+                event={event}
+                nowMs={nowMs || null}
+                hasChartData={hasChartData}
+                activeTimeRange={activeTimeRange}
+                onTimeRangeChange={setActiveTimeRange}
+                isSingleMarket={isSingleMarket}
+                oppositeOutcomeLabel={oppositeOutcomeLabel}
+                onShuffle={() => {
+                  setActiveOutcomeIndex(oppositeOutcomeIndex)
+                  handleCursorDataChange(null)
+                }}
+                marketOptions={marketOptions}
+                selectedMarketIds={selectedMarketIds}
+                maxSeriesCount={maxSeriesCount}
+                onToggleMarket={handleToggleMarket}
+                settings={chartSettings}
+                onSettingsChange={handleChartSettingsChange}
+                onExportData={() => setExportDialogOpen(true)}
+                onEmbed={() => setEmbedDialogOpen(true)}
+              />
             )
           : undefined}
       />
