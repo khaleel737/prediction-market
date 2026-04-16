@@ -11,15 +11,21 @@ interface FeeCalculationExampleProps {
   format?: 'table' | 'inline'
 }
 
-export function FeeCalculationExample({ amount, className = '', format = 'table' }: FeeCalculationExampleProps) {
+function useAffiliateData() {
   const [data, setData] = useState<AffiliateDataResult | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
+  useEffect(function fetchAffiliateSettingsEffect() {
     fetchAffiliateSettingsFromAPI()
       .then(setData)
       .finally(() => setIsLoading(false))
   }, [])
+
+  return { data, isLoading }
+}
+
+export function FeeCalculationExample({ amount, className = '', format = 'table' }: FeeCalculationExampleProps) {
+  const { data, isLoading } = useAffiliateData()
 
   if (isLoading) {
     return (

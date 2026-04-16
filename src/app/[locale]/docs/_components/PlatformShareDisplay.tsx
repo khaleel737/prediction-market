@@ -10,18 +10,24 @@ interface PlatformShareDisplayProps {
   className?: string
 }
 
-export function PlatformShareDisplay({
-  showSymbol = true,
-  className = 'font-semibold text-primary',
-}: PlatformShareDisplayProps) {
+function useAffiliateData() {
   const [data, setData] = useState<AffiliateDataResult | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
+  useEffect(function fetchAffiliateSettingsEffect() {
     fetchAffiliateSettingsFromAPI()
       .then(setData)
       .finally(() => setIsLoading(false))
   }, [])
+
+  return { data, isLoading }
+}
+
+export function PlatformShareDisplay({
+  showSymbol = true,
+  className = 'font-semibold text-primary',
+}: PlatformShareDisplayProps) {
+  const { data, isLoading } = useAffiliateData()
 
   if (isLoading) {
     return (
