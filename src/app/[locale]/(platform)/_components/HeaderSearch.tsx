@@ -4,7 +4,7 @@ import type { Route } from 'next'
 import type { ReactNode, RefObject } from 'react'
 import { SearchIcon, XIcon } from 'lucide-react'
 import { useExtracted } from 'next-intl'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import SearchDiscoveryContent from '@/app/[locale]/(platform)/_components/SearchDiscoveryContent'
 import { SearchResults } from '@/app/[locale]/(platform)/_components/SearchResults'
 import { Input } from '@/components/ui/input'
@@ -236,12 +236,12 @@ export default function HeaderSearch({
     navigateToRoute(href)
   }
 
-  function clearPendingBlurFrame() {
+  const clearPendingBlurFrame = useCallback(() => {
     if (blurFrameRef.current !== null) {
       window.cancelAnimationFrame(blurFrameRef.current)
       blurFrameRef.current = null
     }
-  }
+  }, [])
 
   useSlashFocusShortcut(inputRef)
   useExternalFocusTrigger(focusTrigger, inputRef)
