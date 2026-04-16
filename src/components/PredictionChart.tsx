@@ -538,7 +538,6 @@ export function PredictionChart({
     })
   }, [normalizedSignature, showAnnotations])
 
-  const crossFadeActive = Boolean(crossFadeData && crossFadeProgress < 0.999)
   const surgeFilter = isDarkMode
     ? 'drop-shadow(0 0 2px rgba(255, 255, 255, 0.75))'
     : 'drop-shadow(0 0 1.5px rgba(15, 23, 42, 0.45))'
@@ -677,6 +676,7 @@ export function PredictionChart({
     && effectiveTooltipData.date.getTime() === lastDataPoint.date.getTime()
   const canShowMarkers = Boolean(lastDataPoint)
     && (disableCursorSplit || !tooltipActive || isTooltipAtLastPoint)
+  const crossFadeActive = Boolean(crossFadeData && crossFadeProgress < 0.999 && !shouldSplitByCursor)
   const crossFadeIn = crossFadeActive ? crossFadeProgress : 1
   const crossFadeOut = crossFadeActive ? 1 - crossFadeProgress : 0
   const totalDurationHours = data.length > 1 && lastDataPoint
