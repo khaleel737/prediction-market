@@ -8,6 +8,13 @@ import { SettingsRepository } from '@/lib/db/queries/settings'
 import { UserRepository } from '@/lib/db/queries/user'
 import { encryptSecret } from '@/lib/encryption'
 import {
+  GEO_BLOCKED_COUNTRIES_KEY,
+  GEO_BLOCKING_CUSTOM_HEADER_KEY,
+  GEO_BLOCKING_ENABLED_KEY,
+  GEO_BLOCKING_MESSAGE_KEY,
+  validateGeoBlockingInput,
+} from '@/lib/geo-blocking-settings'
+import {
   GLOBAL_ANNOUNCEMENT_DISABLED_ON_KEY,
   GLOBAL_ANNOUNCEMENT_LINK_URL_KEY,
   GLOBAL_ANNOUNCEMENT_MESSAGE_KEY,
@@ -203,8 +210,18 @@ export async function updateGeneralSettingsAction(
   let tosPdfPath = typeof tosPdfPathRaw === 'string' ? tosPdfPathRaw : ''
   const lifiIntegrator = typeof lifiIntegratorRaw === 'string' ? lifiIntegratorRaw : ''
   const lifiApiKey = typeof lifiApiKeyRaw === 'string' ? lifiApiKeyRaw : ''
+  const geoBlockingEnabledRaw = formData.get('geo_blocking_enabled')
+  const geoBlockedCountriesJsonRaw = formData.get('geo_blocked_countries_json')
+  const geoBlockingMessageRaw = formData.get('geo_blocking_message')
+  const geoBlockingCustomHeaderRaw = formData.get('geo_blocking_custom_header')
+
   const openRouterModel = typeof openRouterModelRaw === 'string' ? openRouterModelRaw.trim() : ''
   const openRouterApiKey = typeof openRouterApiKeyRaw === 'string' ? openRouterApiKeyRaw.trim() : ''
+
+  const geoBlockingEnabled = typeof geoBlockingEnabledRaw === 'string' ? geoBlockingEnabledRaw : 'false'
+  const geoBlockedCountriesJson = typeof geoBlockedCountriesJsonRaw === 'string' ? geoBlockedCountriesJsonRaw : ''
+  const geoBlockingMessage = typeof geoBlockingMessageRaw === 'string' ? geoBlockingMessageRaw : ''
+  const geoBlockingCustomHeader = typeof geoBlockingCustomHeaderRaw === 'string' ? geoBlockingCustomHeaderRaw : ''
 
   if (openRouterModel.length > 160) {
     return { error: 'OpenRouter model is too long.' }
@@ -221,6 +238,16 @@ export async function updateGeneralSettingsAction(
   })
   if (!validatedGlobalAnnouncement.data) {
     return { error: validatedGlobalAnnouncement.error ?? 'Invalid global announcement input.' }
+  }
+
+  const validatedGeoBlocking = validateGeoBlockingInput({
+    enabled: geoBlockingEnabled,
+    blockedCountriesJson: geoBlockedCountriesJson,
+    message: geoBlockingMessage,
+    customGeoHeader: geoBlockingCustomHeader,
+  })
+  if (!validatedGeoBlocking.data) {
+    return { error: validatedGeoBlocking.error ?? 'Invalid geo-blocking input.' }
   }
 
   const normalizedTermsOfServicePdfPath = normalizeTermsOfServicePdfPath(tosPdfPath)
@@ -340,6 +367,10 @@ export async function updateGeneralSettingsAction(
     { group: 'general', key: GLOBAL_ANNOUNCEMENT_MESSAGE_KEY, value: validatedGlobalAnnouncement.data.messageValue },
     { group: 'general', key: GLOBAL_ANNOUNCEMENT_LINK_URL_KEY, value: validatedGlobalAnnouncement.data.linkUrlValue },
     { group: 'general', key: GLOBAL_ANNOUNCEMENT_DISABLED_ON_KEY, value: validatedGlobalAnnouncement.data.disabledOnValue },
+    { group: 'general', key: GEO_BLOCKING_ENABLED_KEY, value: validatedGeoBlocking.data.enabledValue },
+    { group: 'general', key: GEO_BLOCKED_COUNTRIES_KEY, value: validatedGeoBlocking.data.blockedCountriesValue },
+    { group: 'general', key: GEO_BLOCKING_MESSAGE_KEY, value: validatedGeoBlocking.data.messageValue },
+    { group: 'general', key: GEO_BLOCKING_CUSTOM_HEADER_KEY, value: validatedGeoBlocking.data.customGeoHeaderValue },
     { group: 'general', key: 'site_custom_javascript_codes', value: validated.data.customJavascriptCodesValue },
     { group: 'general', key: 'fee_recipient_wallet', value: validated.data.feeRecipientWalletValue },
     { group: 'general', key: TERMS_OF_SERVICE_PDF_PATH_KEY, value: tosPdfPath },

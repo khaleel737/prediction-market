@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import type { AdminThemeSiteSettingsInitialState } from '@/app/[locale]/admin/theme/_types/theme-form-state'
 import type { CustomJavascriptCodeConfig, CustomJavascriptCodeDisablePage } from '@/lib/custom-javascript-code'
-import { ChevronDownIcon, ImageUp, RefreshCwIcon } from 'lucide-react'
+import { ChevronDownIcon, ImageUp, RefreshCwIcon, XIcon } from 'lucide-react'
 import { useExtracted } from 'next-intl'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -20,7 +20,9 @@ import { Input } from '@/components/ui/input'
 import { InputError } from '@/components/ui/input-error'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { COUNTRIES, getCountryName } from '@/lib/countries'
 import {
   MAX_CUSTOM_JAVASCRIPT_CODE_NAME_LENGTH,
   MAX_CUSTOM_JAVASCRIPT_CODE_SNIPPET_LENGTH,
@@ -36,6 +38,8 @@ const initialState = {
 const AUTOMATIC_MODEL_VALUE = '__AUTOMATIC__'
 const MAX_GLOBAL_ANNOUNCEMENT_MESSAGE_LENGTH = 220
 const MAX_GLOBAL_ANNOUNCEMENT_LINK_URL_LENGTH = 2048
+const MAX_GEO_BLOCKING_MESSAGE_LENGTH = 500
+const MAX_GEO_BLOCKING_CUSTOM_HEADER_LENGTH = 120
 
 interface ModelOption {
   id: string
@@ -57,9 +61,17 @@ interface InitialGlobalAnnouncementSettings {
   disabledOn: CustomJavascriptCodeDisablePage[]
 }
 
+interface InitialGeoBlockingSettings {
+  enabled: boolean
+  blockedCountries: string[]
+  message: string
+  customGeoHeader: string
+}
+
 interface AdminGeneralSettingsFormProps {
   initialThemeSiteSettings: AdminThemeSiteSettingsInitialState
   initialGlobalAnnouncement: InitialGlobalAnnouncementSettings
+  initialGeoBlocking: InitialGeoBlockingSettings
   initialTermsOfServicePdfPath: string
   initialTermsOfServicePdfUrl: string | null
   openRouterSettings: OpenRouterGeneralSettings
@@ -153,6 +165,7 @@ function SettingsAccordionSection({
 function AdminGeneralSettingsFormInner({
   initialThemeSiteSettings,
   initialGlobalAnnouncement,
+  initialGeoBlocking,
   initialTermsOfServicePdfPath,
   initialTermsOfServicePdfUrl,
   openRouterSettings,
@@ -215,6 +228,11 @@ function AdminGeneralSettingsFormInner({
   const [globalAnnouncementDisabledOn, setGlobalAnnouncementDisabledOn] = useState<CustomJavascriptCodeDisablePage[]>(
     initialGlobalAnnouncementDisabledOn,
   )
+  const [geoBlockingEnabled, setGeoBlockingEnabled] = useState(initialGeoBlocking.enabled)
+  const [geoBlockedCountries, setGeoBlockedCountries] = useState<string[]>(initialGeoBlocking.blockedCountries)
+  const [geoBlockingMessage, setGeoBlockingMessage] = useState(initialGeoBlocking.message)
+  const [geoBlockingCustomHeader, setGeoBlockingCustomHeader] = useState(initialGeoBlocking.customGeoHeader)
+  const [geoBlockingCountrySearch, setGeoBlockingCountrySearch] = useState('')
   const [customJavascriptCodes, setCustomJavascriptCodes] = useState<CustomJavascriptCodeDraft[]>(
     () => initialCustomJavascriptCodes.map(code => createCustomJavascriptCodeDraft(nextCustomJavascriptCodeIdRef.current++, code)),
   )
@@ -282,6 +300,19 @@ function AdminGeneralSettingsFormInner({
     () => JSON.stringify(globalAnnouncementDisabledOn),
     [globalAnnouncementDisabledOn],
   )
+  const serializedGeoBlockedCountries = useMemo(
+    () => JSON.stringify(geoBlockedCountries),
+    [geoBlockedCountries],
+  )
+  const filteredCountries = useMemo(() => {
+    const search = geoBlockingCountrySearch.trim().toLowerCase()
+    if (!search) {
+      return COUNTRIES
+    }
+    return COUNTRIES.filter(
+      country => country.name.toLowerCase().includes(search) || country.code.toLowerCase().includes(search),
+    )
+  }, [geoBlockingCountrySearch])
   const customJavascriptCodeDisablePageOptions = useMemo(() => ([
     { value: 'home' as const, label: t('Home') },
     { value: 'event' as const, label: '/event' },
@@ -442,6 +473,8 @@ function AdminGeneralSettingsFormInner({
       <input type="hidden" name="tos_pdf_path" value={tosPdfPath} />
       <input type="hidden" name="custom_javascript_codes_json" value={serializedCustomJavascriptCodes} />
       <input type="hidden" name="global_announcement_disabled_on_json" value={serializedGlobalAnnouncementDisabledOn} />
+      <input type="hidden" name="geo_blocking_enabled" value={geoBlockingEnabled ? 'true' : 'false'} />
+      <input type="hidden" name="geo_blocked_countries_json" value={serializedGeoBlockedCountries} />
 
       <div className="grid gap-6">
         <SettingsAccordionSection
@@ -968,6 +1001,147 @@ function AdminGeneralSettingsFormInner({
         </SettingsAccordionSection>
 
         <SettingsAccordionSection
+          value="geo-blocking"
+          isOpen={openSections.includes('geo-blocking')}
+          onToggle={toggleSection}
+          header={<h3 className="text-base font-medium">{t('Geo-blocking')}</h3>}
+        >
+          <div className="grid gap-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="grid gap-1">
+                <Label htmlFor="geo-blocking-enabled">{t('Enable geo-blocking')}</Label>
+                <p className="text-xs text-muted-foreground">
+                  {t('Block visitors from selected countries. Requires the X-Vercel-IP-Country header (Vercel) or a custom geo header from your reverse proxy.')}
+                </p>
+              </div>
+              <Switch
+                id="geo-blocking-enabled"
+                checked={geoBlockingEnabled}
+                onCheckedChange={setGeoBlockingEnabled}
+                disabled={isPending}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="geo-blocking-message">{t('Blocked message')}</Label>
+              <Textarea
+                id="geo-blocking-message"
+                name="geo_blocking_message"
+                maxLength={MAX_GEO_BLOCKING_MESSAGE_LENGTH}
+                rows={2}
+                value={geoBlockingMessage}
+                onChange={event => setGeoBlockingMessage(event.target.value)}
+                disabled={isPending}
+                placeholder={t('This platform is not available in your region.')}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('Displayed to blocked visitors. Leave empty for default message.')}
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="geo-blocking-custom-header">{t('Custom geo header (optional)')}</Label>
+              <Input
+                id="geo-blocking-custom-header"
+                name="geo_blocking_custom_header"
+                maxLength={MAX_GEO_BLOCKING_CUSTOM_HEADER_LENGTH}
+                value={geoBlockingCustomHeader}
+                onChange={event => setGeoBlockingCustomHeader(event.target.value)}
+                disabled={isPending}
+                placeholder={t('e.g. CF-IPCountry, CloudFront-Viewer-Country')}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('Only needed for non-Vercel deployments. Vercel uses X-Vercel-IP-Country by default.')}
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>{t('Blocked countries')}</Label>
+
+              {geoBlockedCountries.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {geoBlockedCountries.map(code => (
+                    <button
+                      key={code}
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => setGeoBlockedCountries(previous => previous.filter(c => c !== code))}
+                      className="
+                        flex items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-xs
+                        transition-colors
+                        hover:border-destructive/50 hover:bg-destructive/10
+                      "
+                    >
+                      <span>
+                        {getCountryName(code)}
+                        {' '}
+                        (
+                        {code}
+                        )
+                      </span>
+                      <XIcon className="size-3 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <Input
+                value={geoBlockingCountrySearch}
+                onChange={event => setGeoBlockingCountrySearch(event.target.value)}
+                disabled={isPending}
+                placeholder={t('Search countries...')}
+              />
+
+              <div className="max-h-48 overflow-y-auto rounded-lg border border-border/60">
+                {filteredCountries.length > 0
+                  ? filteredCountries.map((country) => {
+                      const isSelected = geoBlockedCountries.includes(country.code)
+                      const fieldId = `geo-block-country-${country.code}`
+                      return (
+                        <label
+                          key={country.code}
+                          htmlFor={fieldId}
+                          className={cn(
+                            `
+                              flex cursor-pointer items-center gap-2 border-b border-border/30 px-3 py-2 text-sm
+                              transition-colors
+                              last:border-b-0
+                              hover:bg-muted/40
+                            `,
+                            isSelected && 'bg-primary/5',
+                          )}
+                        >
+                          <Checkbox
+                            id={fieldId}
+                            checked={isSelected}
+                            disabled={isPending}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setGeoBlockedCountries(previous => [...new Set([...previous, country.code])])
+                              }
+                              else {
+                                setGeoBlockedCountries(previous => previous.filter(c => c !== country.code))
+                              }
+                            }}
+                          />
+                          <span>{country.name}</span>
+                          <span className="text-muted-foreground">
+                            (
+                            {country.code}
+                            )
+                          </span>
+                        </label>
+                      )
+                    })
+                  : (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">{t('No countries found.')}</p>
+                    )}
+              </div>
+            </div>
+          </div>
+        </SettingsAccordionSection>
+
+        <SettingsAccordionSection
           value="integrations"
           isOpen={openSections.includes('integrations')}
           onToggle={toggleSection}
@@ -1299,6 +1473,7 @@ export default function AdminGeneralSettingsForm(props: AdminGeneralSettingsForm
   const formResetKey = JSON.stringify({
     initialThemeSiteSettings: props.initialThemeSiteSettings,
     initialGlobalAnnouncement: props.initialGlobalAnnouncement,
+    initialGeoBlocking: props.initialGeoBlocking,
     initialTermsOfServicePdfPath: props.initialTermsOfServicePdfPath,
     initialTermsOfServicePdfUrl: props.initialTermsOfServicePdfUrl,
     openRouterSettings: props.openRouterSettings,

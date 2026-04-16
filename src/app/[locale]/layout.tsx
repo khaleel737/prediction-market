@@ -6,6 +6,7 @@ import { setRequestLocale } from 'next-intl/server'
 import { cacheTag } from 'next/cache'
 import { notFound } from 'next/navigation'
 import CustomJavascriptCode from '@/components/CustomJavascriptCode'
+import GeoBlockingOverlay from '@/components/GeoBlockingOverlay'
 import GlobalAnnouncementBanner from '@/components/GlobalAnnouncementBanner'
 import PwaInstallStateSync from '@/components/PwaInstallStateSync'
 import PwaServiceWorker from '@/components/PwaServiceWorker'
@@ -15,6 +16,7 @@ import { loadEnabledLocales } from '@/i18n/locale-settings'
 import { routing } from '@/i18n/routing'
 import { cacheTags } from '@/lib/cache-tags'
 import { openSauceOne } from '@/lib/fonts'
+import { loadGeoBlockingSettings } from '@/lib/geo-blocking-settings'
 import { loadGlobalAnnouncementSettings } from '@/lib/global-announcement-settings'
 import { IS_TEST_MODE } from '@/lib/network'
 import { resolvePwaThemeColors } from '@/lib/pwa-colors'
@@ -108,6 +110,8 @@ export default async function LocaleLayout({ params, children }: LayoutProps<'/[
   const runtimeTheme = await loadRuntimeThemeState()
   const globalAnnouncement = await loadGlobalAnnouncementSettings()
   const hasGlobalAnnouncement = globalAnnouncement.message.trim().length > 0
+  const geoBlocking = await loadGeoBlockingSettings()
+  const hasGeoBlocking = geoBlocking.enabled && geoBlocking.blockedCountries.length > 0
   cacheTag(cacheTags.settings)
 
   setRequestLocale(locale)
@@ -126,6 +130,15 @@ export default async function LocaleLayout({ params, children }: LayoutProps<'/[
         <SiteIdentityProvider site={runtimeTheme.site}>
           <NextIntlClientProvider locale={locale}>
             <AppProviders>
+              {hasGeoBlocking
+                ? (
+                    <GeoBlockingOverlay
+                      blockedCountries={geoBlocking.blockedCountries}
+                      message={geoBlocking.message}
+                      customGeoHeader={geoBlocking.customGeoHeader}
+                    />
+                  )
+                : null}
               {hasGlobalAnnouncement
                 ? (
                     <GlobalAnnouncementBanner

@@ -38,6 +38,11 @@ vi.mock('@/app/[locale]/admin/(general)/_components/AllowedMarketCreatorsManager
   default: () => React.createElement('div', { 'data-testid': 'allowed-market-creators-manager' }),
 }))
 
+vi.mock('@/lib/countries', () => ({
+  COUNTRIES: [{ code: 'US', name: 'United States' }, { code: 'DE', name: 'Germany' }],
+  getCountryName: (code: string) => ({ US: 'United States', DE: 'Germany' }[code] ?? code),
+}))
+
 describe('adminGeneralSettingsForm', () => {
   beforeEach(() => {
     mocks.removeTermsOfServicePdfAction.mockReset()
@@ -79,6 +84,12 @@ describe('adminGeneralSettingsForm', () => {
           message: '',
           linkUrl: '',
           disabledOn: [],
+        }}
+        initialGeoBlocking={{
+          enabled: false,
+          blockedCountries: [],
+          message: '',
+          customGeoHeader: '',
         }}
         initialTermsOfServicePdfPath="legal/current-terms.pdf"
         initialTermsOfServicePdfUrl="https://cdn.example.com/legal/current-terms.pdf"
@@ -135,6 +146,12 @@ describe('adminGeneralSettingsForm', () => {
           message: '',
           linkUrl: '',
           disabledOn: [],
+        }}
+        initialGeoBlocking={{
+          enabled: false,
+          blockedCountries: [],
+          message: '',
+          customGeoHeader: '',
         }}
         initialTermsOfServicePdfPath=""
         initialTermsOfServicePdfUrl={null}
