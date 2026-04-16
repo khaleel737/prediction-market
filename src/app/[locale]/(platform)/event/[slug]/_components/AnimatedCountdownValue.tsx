@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { clampCountdownDigit } from '../_utils/eventLiveSeriesChartUtils'
 
@@ -9,6 +9,7 @@ function RollingCountdownDigit({ digit }: { digit: number }) {
   const [currentDigit, setCurrentDigit] = useState(() => nextDigit)
   const [previousDigit, setPreviousDigit] = useState<number | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
+  const rafRef = useRef<number | null>(null)
 
   if (nextDigit !== currentDigit) {
     setPreviousDigit(currentDigit)
@@ -16,14 +17,25 @@ function RollingCountdownDigit({ digit }: { digit: number }) {
     setIsAnimating(true)
   }
 
-  function handleDigitTransitionEnd() {
+  useEffect(function scheduleAnimationCleanup() {
     if (!isAnimating) {
       return
     }
 
-    setIsAnimating(false)
-    setPreviousDigit(null)
-  }
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = requestAnimationFrame(() => {
+        setIsAnimating(false)
+        setPreviousDigit(null)
+      })
+    })
+
+    return function cleanupAnimationFrame() {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+    }
+  }, [isAnimating])
 
   return (
     <span className="relative inline-flex h-[1em] w-[0.72em] overflow-hidden">
@@ -46,7 +58,6 @@ function RollingCountdownDigit({ digit }: { digit: number }) {
               ? 'translate-y-0 opacity-100'
               : 'translate-y-full opacity-0',
         )}
-        onTransitionEnd={handleDigitTransitionEnd}
       >
         {currentDigit}
       </span>

@@ -139,8 +139,10 @@ function EventLiveSeriesChartContent({
     startTimestamp,
   })
 
-  const persistedFallbackPrice = snapshotFallbackPrice
-    ?? readPersistedLivePrice(config.topic, subscriptionSymbol)
+  const [initialPersistedFallbackPrice] = useState(
+    () => readPersistedLivePrice(config.topic, subscriptionSymbol),
+  )
+  const persistedFallbackPrice = snapshotFallbackPrice ?? initialPersistedFallbackPrice
 
   const { data, status } = useLiveSeriesWebSocket({
     topic: config.topic,

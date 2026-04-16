@@ -53,16 +53,16 @@ export default function EventLiveSeriesChartHeader({
   status,
   watermark,
 }: EventLiveSeriesChartHeaderProps) {
-  const countdownEndedLogo = (watermark.iconSvg || watermark.label)
+  const countdownEndedLogo = (watermark.iconSvg || watermark.iconImageUrl || watermark.label)
     ? (
         <div
           className="pointer-events-none flex items-center gap-1 text-xl text-muted-foreground opacity-50 select-none"
           aria-hidden
         >
-          {watermark.iconSvg
+          {(watermark.iconSvg || watermark.iconImageUrl)
             ? (
                 <SiteLogoIcon
-                  logoSvg={watermark.iconSvg}
+                  logoSvg={watermark.iconSvg ?? ''}
                   logoImageUrl={watermark.iconImageUrl}
                   alt={`${watermark.label} logo`}
                   className="size-[1em] **:fill-current **:stroke-current"
