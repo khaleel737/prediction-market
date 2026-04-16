@@ -13,7 +13,9 @@ interface EventTabSelectorProps {
   marketChannelStatus: 'connecting' | 'live' | 'offline'
 }
 
-function useEventTabLabels(commentsCount: number | null, locale: string, t: ReturnType<typeof useExtracted>) {
+function useEventTabLabels(commentsCount: number | null) {
+  const t = useExtracted()
+  const locale = useLocale()
   const formattedCommentsCount = useMemo(
     () => (commentsCount == null ? null : Number(commentsCount).toLocaleString(locale)),
     [commentsCount, locale],
@@ -29,7 +31,7 @@ function useEventTabLabels(commentsCount: number | null, locale: string, t: Retu
     { key: 'activity', label: t('Activity') },
   ]), [formattedCommentsCount, t])
 
-  return { formattedCommentsCount, eventTabs }
+  return { eventTabs }
 }
 
 export default function EventTabSelector({
@@ -39,9 +41,7 @@ export default function EventTabSelector({
   liveCommentsStatus,
   marketChannelStatus,
 }: EventTabSelectorProps) {
-  const t = useExtracted()
-  const locale = useLocale()
-  const { eventTabs } = useEventTabLabels(commentsCount, locale, t)
+  const { eventTabs } = useEventTabLabels(commentsCount)
 
   return (
     <div className="mt-3 flex items-center gap-2 border-b border-border">

@@ -222,7 +222,6 @@ function useResolvedMarketDisplay({
   activeMarket,
   currentTimestamp,
   resolveDisplayOutcomeLabel,
-  t,
 }: {
   event: Event
   activeMarket: Market | null | undefined
@@ -232,8 +231,8 @@ function useResolvedMarketDisplay({
     outcomeText: string | null | undefined,
     fallbackLabel: string,
   ) => string
-  t: ReturnType<typeof useExtracted>
 }) {
+  const t = useExtracted()
   const isResolvedMarket = Boolean(activeMarket?.is_resolved || activeMarket?.condition?.resolved)
   const isTweetMarketEvent = useMemo(
     () => isTweetMarketsEvent(event),
@@ -920,7 +919,6 @@ export default function EventOrderPanelForm({
     activeMarket,
     currentTimestamp,
     resolveDisplayOutcomeLabel,
-    t,
   })
   const orderDomain = useMemo(() => getExchangeEip712Domain(isNegRiskEnabled), [isNegRiskEnabled])
   const { positionsQuery, aggregatedPositionShares } = useEventOrderPanelPositions({

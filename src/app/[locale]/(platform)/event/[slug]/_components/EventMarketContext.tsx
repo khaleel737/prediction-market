@@ -62,7 +62,8 @@ interface EventMarketContextContentProps {
   resolvedMarketConditionId?: string
 }
 
-function useMarketContextState(event: Event, resolvedMarketConditionId: string | undefined, t: ReturnType<typeof useExtracted>) {
+function useMarketContextState(event: Event, resolvedMarketConditionId: string | undefined) {
+  const t = useExtracted()
   const [isExpanded, setIsExpanded] = useState(false)
   const [context, setContext] = useState<string | null>(null)
   const [displayedContext, setDisplayedContext] = useState('')
@@ -306,7 +307,7 @@ function EventMarketContextContent({ event, resolvedMarketConditionId }: EventMa
     updatedLabel,
     generateMarketContext,
     toggleCollapse,
-  } = useMarketContextState(event, resolvedMarketConditionId, t)
+  } = useMarketContextState(event, resolvedMarketConditionId)
   const isContentExpanded = isExpanded || Boolean(error)
 
   return (
