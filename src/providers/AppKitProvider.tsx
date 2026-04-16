@@ -203,10 +203,17 @@ function createAppKitContextValue(instance: AppKit | null) {
   }
 }
 
-export default function AppKitProvider({ children }: { children: ReactNode }) {
-  const site = useSiteIdentity()
-  const resolvedTheme = useResolvedThemeMode()
-  const appKitThemeMode: 'light' | 'dark' = resolvedTheme === 'dark' ? 'dark' : 'light'
+function useAppKitInstance({
+  appKitThemeMode,
+  siteName,
+  siteDescription,
+  siteLogoUrl,
+}: {
+  appKitThemeMode: 'light' | 'dark'
+  siteName: string
+  siteDescription: string
+  siteLogoUrl: string
+}) {
   const [appKitInitRetryToken, setAppKitInitRetryToken] = useState(0)
   const instance = useSyncExternalStore(
     subscribeAppKitStateChange,
@@ -214,15 +221,15 @@ export default function AppKitProvider({ children }: { children: ReactNode }) {
     () => null,
   )
 
-  useEffect(() => {
+  useEffect(function initializeAppKitWithRetry() {
     if (instance) {
       return
     }
 
     const initializedInstance = initializeAppKitSingleton(appKitThemeMode, {
-      name: site.name,
-      description: site.description,
-      logoUrl: site.logoUrl,
+      name: siteName,
+      description: siteDescription,
+      logoUrl: siteLogoUrl,
     })
     if (initializedInstance) {
       return
@@ -231,12 +238,29 @@ export default function AppKitProvider({ children }: { children: ReactNode }) {
     const retryTimeout = window.setTimeout(() => {
       setAppKitInitRetryToken(previous => previous + 1)
     }, APPKIT_INIT_RETRY_DELAY_MS)
-    return () => {
+    return function cancelAppKitInitRetry() {
       window.clearTimeout(retryTimeout)
     }
-  }, [appKitThemeMode, appKitInitRetryToken, instance, site.description, site.logoUrl, site.name])
+  }, [appKitThemeMode, appKitInitRetryToken, instance, siteDescription, siteLogoUrl, siteName])
 
-  const appKitValue = useMemo(() => createAppKitContextValue(instance), [instance])
+  return instance
+}
+
+function useAppKitContextValue(instance: AppKit | null) {
+  return useMemo(() => createAppKitContextValue(instance), [instance])
+}
+
+export default function AppKitProvider({ children }: { children: ReactNode }) {
+  const site = useSiteIdentity()
+  const resolvedTheme = useResolvedThemeMode()
+  const appKitThemeMode: 'light' | 'dark' = resolvedTheme === 'dark' ? 'dark' : 'light'
+  const instance = useAppKitInstance({
+    appKitThemeMode,
+    siteName: site.name,
+    siteDescription: site.description,
+    siteLogoUrl: site.logoUrl,
+  })
+  const appKitValue = useAppKitContextValue(instance)
   const canSyncTheme = Boolean(instance)
 
   return (

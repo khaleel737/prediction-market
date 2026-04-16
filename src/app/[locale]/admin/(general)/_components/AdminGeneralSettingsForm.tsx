@@ -89,6 +89,11 @@ function toCustomJavascriptCodeConfig({ id: _id, ...code }: CustomJavascriptCode
   return code
 }
 
+function useSettingsAccordionSectionId() {
+  const contentId = useId()
+  return contentId
+}
+
 function SettingsAccordionSection({
   value,
   header,
@@ -97,7 +102,7 @@ function SettingsAccordionSection({
   isOpen,
   onToggle,
 }: SettingsAccordionSectionProps) {
-  const contentId = useId()
+  const contentId = useSettingsAccordionSectionId()
 
   return (
     <section
@@ -150,43 +155,24 @@ function SettingsAccordionSection({
   )
 }
 
-function AdminGeneralSettingsFormInner({
+function useGeneralSettingsFormState({
   initialThemeSiteSettings,
   initialGlobalAnnouncement,
   initialTermsOfServicePdfPath,
-  initialTermsOfServicePdfUrl,
   openRouterSettings,
-}: AdminGeneralSettingsFormProps) {
+}: {
+  initialThemeSiteSettings: AdminThemeSiteSettingsInitialState
+  initialGlobalAnnouncement: InitialGlobalAnnouncementSettings
+  initialTermsOfServicePdfPath: string
+  openRouterSettings: OpenRouterGeneralSettings
+}) {
   const t = useExtracted()
-  const initialSiteName = initialThemeSiteSettings.siteName
-  const initialSiteDescription = initialThemeSiteSettings.siteDescription
   const initialLogoMode = initialThemeSiteSettings.logoMode
-  const initialLogoSvg = initialThemeSiteSettings.logoSvg
-  const initialLogoImagePath = initialThemeSiteSettings.logoImagePath
   const initialLogoImageUrl = initialThemeSiteSettings.logoImageUrl
-  const initialPwaIcon192Path = initialThemeSiteSettings.pwaIcon192Path
-  const initialPwaIcon512Path = initialThemeSiteSettings.pwaIcon512Path
   const initialPwaIcon192Url = initialThemeSiteSettings.pwaIcon192Url
   const initialPwaIcon512Url = initialThemeSiteSettings.pwaIcon512Url
-  const initialGoogleAnalyticsId = initialThemeSiteSettings.googleAnalyticsId
-  const initialDiscordLink = initialThemeSiteSettings.discordLink
-  const initialTwitterLink = initialThemeSiteSettings.twitterLink
-  const initialFacebookLink = initialThemeSiteSettings.facebookLink
-  const initialInstagramLink = initialThemeSiteSettings.instagramLink
-  const initialTiktokLink = initialThemeSiteSettings.tiktokLink
-  const initialLinkedinLink = initialThemeSiteSettings.linkedinLink
-  const initialYoutubeLink = initialThemeSiteSettings.youtubeLink
-  const initialSupportUrl = initialThemeSiteSettings.supportUrl
-  const initialGlobalAnnouncementMessage = initialGlobalAnnouncement.message
-  const initialGlobalAnnouncementLinkUrl = initialGlobalAnnouncement.linkUrl
-  const initialGlobalAnnouncementDisabledOn = initialGlobalAnnouncement.disabledOn
   const initialCustomJavascriptCodes = initialThemeSiteSettings.customJavascriptCodes
-  const initialFeeRecipientWallet = initialThemeSiteSettings.feeRecipientWallet
-  const initialLiFiIntegrator = initialThemeSiteSettings.lifiIntegrator
-  const initialLiFiApiKey = initialThemeSiteSettings.lifiApiKey
-  const initialLiFiApiKeyConfigured = initialThemeSiteSettings.lifiApiKeyConfigured
   const initialOpenRouterModel = openRouterSettings.defaultModel ?? ''
-  const initialOpenRouterApiKeyConfigured = openRouterSettings.isApiKeyConfigured
 
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(updateGeneralSettingsAction, initialState)
@@ -194,34 +180,34 @@ function AdminGeneralSettingsFormInner({
   const wasPendingRef = useRef(isPending)
   const nextCustomJavascriptCodeIdRef = useRef(0)
 
-  const [siteName, setSiteName] = useState(initialSiteName)
-  const [siteDescription, setSiteDescription] = useState(initialSiteDescription)
+  const [siteName, setSiteName] = useState(initialThemeSiteSettings.siteName)
+  const [siteDescription, setSiteDescription] = useState(initialThemeSiteSettings.siteDescription)
   const [logoMode, setLogoMode] = useState(initialLogoMode)
-  const [logoSvg, setLogoSvg] = useState(initialLogoSvg)
-  const [logoImagePath, setLogoImagePath] = useState(initialLogoImagePath)
-  const [pwaIcon192Path] = useState(initialPwaIcon192Path)
-  const [pwaIcon512Path] = useState(initialPwaIcon512Path)
-  const [googleAnalyticsId, setGoogleAnalyticsId] = useState(initialGoogleAnalyticsId)
-  const [discordLink, setDiscordLink] = useState(initialDiscordLink)
-  const [twitterLink, setTwitterLink] = useState(initialTwitterLink)
-  const [facebookLink, setFacebookLink] = useState(initialFacebookLink)
-  const [instagramLink, setInstagramLink] = useState(initialInstagramLink)
-  const [tiktokLink, setTiktokLink] = useState(initialTiktokLink)
-  const [linkedinLink, setLinkedinLink] = useState(initialLinkedinLink)
-  const [youtubeLink, setYoutubeLink] = useState(initialYoutubeLink)
-  const [supportUrl, setSupportUrl] = useState(initialSupportUrl)
-  const [globalAnnouncementMessage, setGlobalAnnouncementMessage] = useState(initialGlobalAnnouncementMessage)
-  const [globalAnnouncementLinkUrl, setGlobalAnnouncementLinkUrl] = useState(initialGlobalAnnouncementLinkUrl)
+  const [logoSvg, setLogoSvg] = useState(initialThemeSiteSettings.logoSvg)
+  const [logoImagePath, setLogoImagePath] = useState(initialThemeSiteSettings.logoImagePath)
+  const [pwaIcon192Path] = useState(initialThemeSiteSettings.pwaIcon192Path)
+  const [pwaIcon512Path] = useState(initialThemeSiteSettings.pwaIcon512Path)
+  const [googleAnalyticsId, setGoogleAnalyticsId] = useState(initialThemeSiteSettings.googleAnalyticsId)
+  const [discordLink, setDiscordLink] = useState(initialThemeSiteSettings.discordLink)
+  const [twitterLink, setTwitterLink] = useState(initialThemeSiteSettings.twitterLink)
+  const [facebookLink, setFacebookLink] = useState(initialThemeSiteSettings.facebookLink)
+  const [instagramLink, setInstagramLink] = useState(initialThemeSiteSettings.instagramLink)
+  const [tiktokLink, setTiktokLink] = useState(initialThemeSiteSettings.tiktokLink)
+  const [linkedinLink, setLinkedinLink] = useState(initialThemeSiteSettings.linkedinLink)
+  const [youtubeLink, setYoutubeLink] = useState(initialThemeSiteSettings.youtubeLink)
+  const [supportUrl, setSupportUrl] = useState(initialThemeSiteSettings.supportUrl)
+  const [globalAnnouncementMessage, setGlobalAnnouncementMessage] = useState(initialGlobalAnnouncement.message)
+  const [globalAnnouncementLinkUrl, setGlobalAnnouncementLinkUrl] = useState(initialGlobalAnnouncement.linkUrl)
   const [globalAnnouncementDisabledOn, setGlobalAnnouncementDisabledOn] = useState<CustomJavascriptCodeDisablePage[]>(
-    initialGlobalAnnouncementDisabledOn,
+    initialGlobalAnnouncement.disabledOn,
   )
   const [customJavascriptCodes, setCustomJavascriptCodes] = useState<CustomJavascriptCodeDraft[]>(
     () => initialCustomJavascriptCodes.map(code => createCustomJavascriptCodeDraft(nextCustomJavascriptCodeIdRef.current++, code)),
   )
-  const [feeRecipientWallet, setFeeRecipientWallet] = useState(initialFeeRecipientWallet)
+  const [feeRecipientWallet, setFeeRecipientWallet] = useState(initialThemeSiteSettings.feeRecipientWallet)
   const [tosPdfPath, setTosPdfPath] = useState(initialTermsOfServicePdfPath)
-  const [lifiIntegrator, setLifiIntegrator] = useState(initialLiFiIntegrator)
-  const [lifiApiKey, setLifiApiKey] = useState(initialLiFiApiKey)
+  const [lifiIntegrator, setLifiIntegrator] = useState(initialThemeSiteSettings.lifiIntegrator)
+  const [lifiApiKey, setLifiApiKey] = useState(initialThemeSiteSettings.lifiApiKey)
   const [openRouterApiKey, setOpenRouterApiKey] = useState('')
   const [openRouterModel, setOpenRouterModel] = useState(initialOpenRouterModel)
   const [openRouterSelectValue, setOpenRouterSelectValue] = useState(
@@ -237,21 +223,24 @@ function AdminGeneralSettingsFormInner({
   const [pwaIcon512PreviewUrl, setPwaIcon512PreviewUrl] = useState<string | null>(null)
   const [openSections, setOpenSections] = useState<string[]>([])
 
-  useEffect(() => {
-    return () => {
-      if (logoPreviewUrl) {
-        URL.revokeObjectURL(logoPreviewUrl)
+  useEffect(function revokePreviewUrlsOnChange() {
+    const capturedLogoUrl = logoPreviewUrl
+    const capturedPwa192Url = pwaIcon192PreviewUrl
+    const capturedPwa512Url = pwaIcon512PreviewUrl
+    return function revokeUrls() {
+      if (capturedLogoUrl) {
+        URL.revokeObjectURL(capturedLogoUrl)
       }
-      if (pwaIcon192PreviewUrl) {
-        URL.revokeObjectURL(pwaIcon192PreviewUrl)
+      if (capturedPwa192Url) {
+        URL.revokeObjectURL(capturedPwa192Url)
       }
-      if (pwaIcon512PreviewUrl) {
-        URL.revokeObjectURL(pwaIcon512PreviewUrl)
+      if (capturedPwa512Url) {
+        URL.revokeObjectURL(capturedPwa512Url)
       }
     }
   }, [logoPreviewUrl, pwaIcon192PreviewUrl, pwaIcon512PreviewUrl])
 
-  useEffect(() => {
+  useEffect(function toastOnSettingsTransition() {
     const transitionedToIdle = wasPendingRef.current && !isPending
 
     if (transitionedToIdle && state.error === null) {
@@ -296,6 +285,202 @@ function AdminGeneralSettingsFormInner({
     () => `data:image/svg+xml;utf8,${encodeURIComponent(sanitizedLogoSvg)}`,
     [sanitizedLogoSvg],
   )
+
+  return {
+    router,
+    state,
+    formAction,
+    isPending,
+    isRemovingTermsOfServicePdf,
+    startRemovingTermsOfServicePdf,
+    nextCustomJavascriptCodeIdRef,
+    siteName,
+    setSiteName,
+    siteDescription,
+    setSiteDescription,
+    logoMode,
+    setLogoMode,
+    logoSvg,
+    setLogoSvg,
+    logoImagePath,
+    setLogoImagePath,
+    pwaIcon192Path,
+    pwaIcon512Path,
+    googleAnalyticsId,
+    setGoogleAnalyticsId,
+    discordLink,
+    setDiscordLink,
+    twitterLink,
+    setTwitterLink,
+    facebookLink,
+    setFacebookLink,
+    instagramLink,
+    setInstagramLink,
+    tiktokLink,
+    setTiktokLink,
+    linkedinLink,
+    setLinkedinLink,
+    youtubeLink,
+    setYoutubeLink,
+    supportUrl,
+    setSupportUrl,
+    globalAnnouncementMessage,
+    setGlobalAnnouncementMessage,
+    globalAnnouncementLinkUrl,
+    setGlobalAnnouncementLinkUrl,
+    globalAnnouncementDisabledOn,
+    setGlobalAnnouncementDisabledOn,
+    customJavascriptCodes,
+    setCustomJavascriptCodes,
+    feeRecipientWallet,
+    setFeeRecipientWallet,
+    tosPdfPath,
+    setTosPdfPath,
+    lifiIntegrator,
+    setLifiIntegrator,
+    lifiApiKey,
+    setLifiApiKey,
+    openRouterApiKey,
+    setOpenRouterApiKey,
+    openRouterModel,
+    setOpenRouterModel,
+    openRouterSelectValue,
+    setOpenRouterSelectValue,
+    openRouterModelOptions,
+    setOpenRouterModelOptions,
+    openRouterModelsError,
+    setOpenRouterModelsError,
+    isRefreshingOpenRouterModels,
+    setIsRefreshingOpenRouterModels,
+    selectedLogoFile,
+    setSelectedLogoFile,
+    selectedTermsOfServicePdfFile,
+    setSelectedTermsOfServicePdfFile,
+    logoPreviewUrl,
+    setLogoPreviewUrl,
+    pwaIcon192PreviewUrl,
+    setPwaIcon192PreviewUrl,
+    pwaIcon512PreviewUrl,
+    setPwaIcon512PreviewUrl,
+    openSections,
+    setOpenSections,
+    imagePreview,
+    pwaIcon192Preview,
+    pwaIcon512Preview,
+    serializedCustomJavascriptCodes,
+    serializedGlobalAnnouncementDisabledOn,
+    customJavascriptCodeDisablePageOptions,
+    sanitizedLogoSvg,
+    svgPreviewUrl,
+    initialLogoMode,
+    initialLiFiApiKeyConfigured: initialThemeSiteSettings.lifiApiKeyConfigured,
+    initialOpenRouterApiKeyConfigured: openRouterSettings.isApiKeyConfigured,
+  }
+}
+
+function AdminGeneralSettingsFormInner({
+  initialThemeSiteSettings,
+  initialGlobalAnnouncement,
+  initialTermsOfServicePdfPath,
+  initialTermsOfServicePdfUrl,
+  openRouterSettings,
+}: AdminGeneralSettingsFormProps) {
+  const t = useExtracted()
+  const {
+    router,
+    state,
+    formAction,
+    isPending,
+    isRemovingTermsOfServicePdf,
+    startRemovingTermsOfServicePdf,
+    nextCustomJavascriptCodeIdRef,
+    siteName,
+    setSiteName,
+    siteDescription,
+    setSiteDescription,
+    logoMode,
+    setLogoMode,
+    logoSvg,
+    setLogoSvg,
+    logoImagePath,
+    setLogoImagePath,
+    pwaIcon192Path,
+    pwaIcon512Path,
+    googleAnalyticsId,
+    setGoogleAnalyticsId,
+    discordLink,
+    setDiscordLink,
+    twitterLink,
+    setTwitterLink,
+    facebookLink,
+    setFacebookLink,
+    instagramLink,
+    setInstagramLink,
+    tiktokLink,
+    setTiktokLink,
+    linkedinLink,
+    setLinkedinLink,
+    youtubeLink,
+    setYoutubeLink,
+    supportUrl,
+    setSupportUrl,
+    globalAnnouncementMessage,
+    setGlobalAnnouncementMessage,
+    globalAnnouncementLinkUrl,
+    setGlobalAnnouncementLinkUrl,
+    globalAnnouncementDisabledOn,
+    setGlobalAnnouncementDisabledOn,
+    customJavascriptCodes,
+    setCustomJavascriptCodes,
+    feeRecipientWallet,
+    setFeeRecipientWallet,
+    tosPdfPath,
+    setTosPdfPath,
+    lifiIntegrator,
+    setLifiIntegrator,
+    lifiApiKey,
+    setLifiApiKey,
+    openRouterApiKey,
+    setOpenRouterApiKey,
+    openRouterModel,
+    setOpenRouterModel,
+    openRouterSelectValue,
+    setOpenRouterSelectValue,
+    openRouterModelOptions,
+    setOpenRouterModelOptions,
+    openRouterModelsError,
+    setOpenRouterModelsError,
+    isRefreshingOpenRouterModels,
+    setIsRefreshingOpenRouterModels,
+    selectedLogoFile,
+    setSelectedLogoFile,
+    selectedTermsOfServicePdfFile,
+    setSelectedTermsOfServicePdfFile,
+    logoPreviewUrl,
+    setLogoPreviewUrl,
+    pwaIcon192PreviewUrl,
+    setPwaIcon192PreviewUrl,
+    pwaIcon512PreviewUrl,
+    setPwaIcon512PreviewUrl,
+    openSections,
+    setOpenSections,
+    imagePreview,
+    pwaIcon192Preview,
+    pwaIcon512Preview,
+    serializedCustomJavascriptCodes,
+    serializedGlobalAnnouncementDisabledOn,
+    customJavascriptCodeDisablePageOptions,
+    sanitizedLogoSvg,
+    svgPreviewUrl,
+    initialLogoMode,
+    initialLiFiApiKeyConfigured,
+    initialOpenRouterApiKeyConfigured,
+  } = useGeneralSettingsFormState({
+    initialThemeSiteSettings,
+    initialGlobalAnnouncement,
+    initialTermsOfServicePdfPath,
+    openRouterSettings,
+  })
 
   const showImagePreview = Boolean(imagePreview)
   const showSvgPreview = !showImagePreview && Boolean(sanitizedLogoSvg.trim())
