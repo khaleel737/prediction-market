@@ -218,6 +218,13 @@ export default function PublicActivityList({ userAddress }: PublicActivityListPr
       isLoadingMore: true,
     })
     fetchNextPage()
+      .then(() => {
+        setLoadMoreState({
+          key: loadMoreScopeKey,
+          infiniteScrollError: null,
+          isLoadingMore: false,
+        })
+      })
       .catch((error) => {
         if (error.name !== 'AbortError') {
           setLoadMoreState({
@@ -225,9 +232,8 @@ export default function PublicActivityList({ userAddress }: PublicActivityListPr
             infiniteScrollError: error.message || 'Failed to load more activity.',
             isLoadingMore: false,
           })
+          return
         }
-      })
-      .finally(() => {
         setLoadMoreState({
           key: loadMoreScopeKey,
           infiniteScrollError: null,
