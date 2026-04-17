@@ -79,7 +79,8 @@ export default function MarketDetailTabs({
   const positionSizeThreshold = POSITION_VISIBILITY_THRESHOLD
   const isResolvedView = variant === 'resolved'
   const isResolvedMarket = isMarketResolved(market)
-  const shouldHideOrderBook = isResolvedView || isResolvedMarket
+  const isResolvedContext = isResolvedView || isResolvedMarket
+  const shouldHideOrderBook = isResolvedContext
   const marketShares = sharesByCondition?.[market.condition_id]
   const yesShares = marketShares?.[OUTCOME_INDEX.YES] ?? 0
   const noShares = marketShares?.[OUTCOME_INDEX.NO] ?? 0
@@ -93,15 +94,15 @@ export default function MarketDetailTabs({
     userId: user?.id,
     eventSlug: event.slug,
     conditionId: market.condition_id,
-    enabled: Boolean(user?.id) && !isResolvedView,
+    enabled: Boolean(user?.id) && !isResolvedContext,
   })
   const hasOpenOrders = useMemo(() => {
-    if (isResolvedView) {
+    if (isResolvedContext) {
       return false
     }
     const pages = openOrdersData?.pages ?? []
     return pages.some(page => page.data.length > 0)
-  }, [isResolvedView, openOrdersData?.pages])
+  }, [isResolvedContext, openOrdersData?.pages])
 
   const { data: historyPreview } = useQuery<DataApiActivity[]>({
     queryKey: ['user-market-activity-preview', user?.proxy_wallet_address, market.condition_id],
@@ -112,24 +113,24 @@ export default function MarketDetailTabs({
         conditionId: market.condition_id,
         signal,
       }),
-    enabled: Boolean(user?.proxy_wallet_address && market.condition_id) && !isResolvedView,
+    enabled: Boolean(user?.proxy_wallet_address && market.condition_id) && !isResolvedContext,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 10,
   })
   const hasHistory = useMemo(
     () => {
-      if (isResolvedView) {
+      if (isResolvedContext) {
         return false
       }
       return (historyPreview ?? []).some(activity =>
         activity.type?.toLowerCase() === 'trade'
         && activity.conditionId === market.condition_id)
     },
-    [historyPreview, isResolvedView, market.condition_id],
+    [historyPreview, isResolvedContext, market.condition_id],
   )
 
   const visibleTabs = useMemo(() => {
-    if (isResolvedView) {
+    if (isResolvedContext) {
       return [
         { id: 'graph', label: t('Graph') },
         { id: 'history', label: t('History') },
@@ -158,7 +159,7 @@ export default function MarketDetailTabs({
     }
     tabs.push({ id: 'resolution', label: t('Resolution') })
     return tabs
-  }, [hasHistory, hasOpenOrders, hasPositions, isResolvedView, shouldHideOrderBook, t])
+  }, [hasHistory, hasOpenOrders, hasPositions, isResolvedContext, shouldHideOrderBook, t])
 
   const selectedTab = useMemo<MarketDetailTab>(() => {
     if (controlledTab && visibleTabs.some(tab => tab.id === controlledTab)) {

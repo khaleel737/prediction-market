@@ -77,7 +77,6 @@ export default function ResolvedMarketRow({
               {market.short_title || market.title}
             </div>
             <div className="text-sm text-muted-foreground">
-              $
               {t('{amount} Vol.', {
                 amount: `$${resolvedVolume.toLocaleString(locale, {
                   minimumFractionDigits: 2,
