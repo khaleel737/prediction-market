@@ -4,16 +4,28 @@ import type { AdminThemeSettingsFormProps } from '@/app/[locale]/admin/theme/_co
 import { useMemo } from 'react'
 import AdminThemeSettingsFormInner from '@/app/[locale]/admin/theme/_components/AdminThemeSettingsFormInner'
 
-export default function AdminThemeSettingsForm(props: AdminThemeSettingsFormProps) {
-  const formResetKey = useMemo(() => JSON.stringify({
-    presetOptions: props.presetOptions,
-    initialThemeSettings: props.initialThemeSettings,
-    initialThemeSiteSettings: props.initialThemeSiteSettings,
+function useThemeFormResetKey({
+  presetOptions,
+  initialThemeSettings,
+  initialThemeSiteSettings,
+}: {
+  presetOptions: AdminThemeSettingsFormProps['presetOptions']
+  initialThemeSettings: AdminThemeSettingsFormProps['initialThemeSettings']
+  initialThemeSiteSettings: AdminThemeSettingsFormProps['initialThemeSiteSettings']
+}) {
+  return useMemo(() => JSON.stringify({
+    presetOptions,
+    initialThemeSettings,
+    initialThemeSiteSettings,
   }), [
-    props.presetOptions,
-    props.initialThemeSettings,
-    props.initialThemeSiteSettings,
+    presetOptions,
+    initialThemeSettings,
+    initialThemeSiteSettings,
   ])
+}
+
+export default function AdminThemeSettingsForm(props: AdminThemeSettingsFormProps) {
+  const formResetKey = useThemeFormResetKey(props)
 
   return <AdminThemeSettingsFormInner key={formResetKey} {...props} />
 }
