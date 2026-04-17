@@ -148,57 +148,66 @@ const IFRAME_HEIGHT_WITH_CHART = 400
 const IFRAME_HEIGHT_WITH_FILTERS = 440
 const IFRAME_HEIGHT_NO_CHART = 180
 
-export default function AffiliateWidgetDialog({
-  open,
-  onOpenChange,
-  categories,
-}: AffiliateWidgetDialogProps) {
-  const t = useExtracted()
-  const locale = useLocale()
-  const site = useSiteIdentity()
-  const user = useUser()
-  const affiliateCode = user?.affiliate_code?.trim() ?? ''
+function useEmbedOptions() {
   const [theme, setTheme] = useState<EmbedTheme>('light')
   const [embedType, setEmbedType] = useState<EmbedType>('iframe')
   const [showVolume, setShowVolume] = useState(false)
   const [showChart, setShowChart] = useState(false)
   const [showTimeRange, setShowTimeRange] = useState(false)
-  const [copied, setCopied] = useState(false)
+
+  function handleShowChartChange(nextValue: boolean) {
+    setShowChart(nextValue)
+    if (!nextValue) {
+      setShowTimeRange(false)
+    }
+  }
+
+  return {
+    theme,
+    setTheme,
+    embedType,
+    setEmbedType,
+    showVolume,
+    setShowVolume,
+    showChart,
+    showTimeRange,
+    setShowTimeRange,
+    handleShowChartChange,
+  }
+}
+
+function useEmbedCategorySelection(categories: AffiliateWidgetDialogProps['categories']) {
   const [selectedCategoryState, setSelectedCategoryState] = useState<string>(categories[0]?.slug ?? '')
-  const [affiliateSharePercent, setAffiliateSharePercent] = useState<number | null>(null)
-  const [tradeFeePercent, setTradeFeePercent] = useState<number | null>(null)
-
-  const siteSlug = useMemo(() => {
-    try {
-      return slugifySiteName(site.name)
-    }
-    catch {
-      return 'market'
-    }
-  }, [site.name])
-
   const selectedCategory = useMemo(
     () => categories.some(category => category.slug === selectedCategoryState)
       ? selectedCategoryState
       : (categories[0]?.slug ?? ''),
     [categories, selectedCategoryState],
   )
-  const {
-    data: currentMarkets = [],
-    isFetching: isFetchingCategory,
-    isError: categoryLoadFailed,
-  } = useQuery({
-    queryKey: ['affiliate-widget-category-markets', locale, selectedCategory],
-    enabled: open && Boolean(selectedCategory),
-    staleTime: 60_000,
-    gcTime: 300_000,
-    queryFn: ({ signal }) => fetchCategoryMarkets(selectedCategory, locale, signal),
-  })
-  const selectedMarket = currentMarkets[0]
-  const embedElementName = `${siteSlug}-market-embed`
-  const embedIframeTitle = `${siteSlug}-market-iframe`
+  return { selectedCategory, setSelectedCategoryState }
+}
 
-  useEffect(() => {
+function useCopyFlashState() {
+  const [copied, setCopied] = useState(false)
+  return { copied, setCopied }
+}
+
+function useSiteSlug(siteName: string) {
+  return useMemo(() => {
+    try {
+      return slugifySiteName(siteName)
+    }
+    catch {
+      return 'market'
+    }
+  }, [siteName])
+}
+
+function useAffiliateFeeSettings(affiliateCode: string) {
+  const [affiliateSharePercent, setAffiliateSharePercent] = useState<number | null>(null)
+  const [tradeFeePercent, setTradeFeePercent] = useState<number | null>(null)
+
+  useEffect(function loadAffiliateFeeSettings() {
     if (!affiliateCode) {
       setAffiliateSharePercent(null)
       setTradeFeePercent(null)
@@ -230,29 +239,55 @@ export default function AffiliateWidgetDialog({
         }
       })
 
-    return () => {
+    return function cleanupAffiliateFeeSettings() {
       isActive = false
     }
   }, [affiliateCode])
 
-  function handleShowChartChange(nextValue: boolean) {
-    setShowChart(nextValue)
-    if (!nextValue) {
-      setShowTimeRange(false)
-    }
-  }
+  return { affiliateSharePercent, tradeFeePercent }
+}
 
-  function handleSelectedCategoryChange(nextValue: string) {
-    setSelectedCategoryState(nextValue)
-  }
+function useCategoryMarkets({
+  enabled,
+  locale,
+  selectedCategory,
+}: {
+  enabled: boolean
+  locale: string
+  selectedCategory: string
+}) {
+  return useQuery({
+    queryKey: ['affiliate-widget-category-markets', locale, selectedCategory],
+    enabled: enabled && Boolean(selectedCategory),
+    staleTime: 60_000,
+    gcTime: 300_000,
+    queryFn: ({ signal }) => fetchCategoryMarkets(selectedCategory, locale, signal),
+  })
+}
 
-  function handleDialogOpenChange(nextOpen: boolean) {
-    if (!nextOpen) {
-      setCopied(false)
-    }
-    onOpenChange(nextOpen)
-  }
-
+function useEmbedCode({
+  selectedCategory,
+  locale,
+  theme,
+  showVolume,
+  showChart,
+  showTimeRange,
+  affiliateCode,
+  embedElementName,
+  embedIframeTitle,
+  selectedMarketSlug,
+}: {
+  selectedCategory: string
+  locale: string
+  theme: EmbedTheme
+  showVolume: boolean
+  showChart: boolean
+  showTimeRange: boolean
+  affiliateCode: string
+  embedElementName: string
+  embedIframeTitle: string
+  selectedMarketSlug: string
+}) {
   const features = useMemo(
     () => buildFeatureList(showVolume, showChart, showTimeRange),
     [showVolume, showChart, showTimeRange],
@@ -291,19 +326,15 @@ export default function AffiliateWidgetDialog({
     () =>
       buildWebComponentCode(
         embedElementName,
-        selectedMarket?.slug ?? '',
+        selectedMarketSlug,
         theme,
         showVolume,
         showChart,
         showTimeRange,
         affiliateCode,
       ),
-    [embedElementName, selectedMarket?.slug, theme, showVolume, showChart, showTimeRange, affiliateCode],
+    [embedElementName, selectedMarketSlug, theme, showVolume, showChart, showTimeRange, affiliateCode],
   )
-  const activeCode = embedType === 'iframe' ? iframeCode : webComponentCode
-  const canCopy = embedType === 'iframe'
-    ? Boolean(iframeSrc)
-    : Boolean(selectedMarket?.slug)
 
   const iframeLines = useMemo<EmbedCodeLine[]>(() => ([
     tagOpenLine('', 'iframe'),
@@ -324,7 +355,7 @@ export default function AffiliateWidgetDialog({
       tagEndLine('\t'),
       tagCloseLine('\t', 'script'),
       tagOpenLine('\t', embedElementName),
-      attributeLine('\t\t', 'market', selectedMarket?.slug ?? ''),
+      attributeLine('\t\t', 'market', selectedMarketSlug),
     ]
 
     if (showVolume) {
@@ -344,7 +375,89 @@ export default function AffiliateWidgetDialog({
     lines.push(tagSelfCloseLine('\t'))
     lines.push(tagCloseLine('', 'div'))
     return lines
-  }, [affiliateCode, embedElementName, selectedMarket?.slug, showVolume, showChart, showTimeRange, theme])
+  }, [affiliateCode, embedElementName, selectedMarketSlug, showVolume, showChart, showTimeRange, theme])
+
+  return {
+    iframeHeight,
+    iframeSrc,
+    previewSrc,
+    iframeCode,
+    webComponentCode,
+    iframeLines,
+    webComponentLines,
+  }
+}
+
+export default function AffiliateWidgetDialog({
+  open,
+  onOpenChange,
+  categories,
+}: AffiliateWidgetDialogProps) {
+  const t = useExtracted()
+  const locale = useLocale()
+  const site = useSiteIdentity()
+  const user = useUser()
+  const affiliateCode = user?.affiliate_code?.trim() ?? ''
+  const {
+    theme,
+    setTheme,
+    embedType,
+    setEmbedType,
+    showVolume,
+    setShowVolume,
+    showChart,
+    showTimeRange,
+    setShowTimeRange,
+    handleShowChartChange,
+  } = useEmbedOptions()
+  const { copied, setCopied } = useCopyFlashState()
+  const { selectedCategory, setSelectedCategoryState } = useEmbedCategorySelection(categories)
+  const siteSlug = useSiteSlug(site.name)
+  const { affiliateSharePercent, tradeFeePercent } = useAffiliateFeeSettings(affiliateCode)
+  const {
+    data: currentMarkets = [],
+    isFetching: isFetchingCategory,
+    isError: categoryLoadFailed,
+  } = useCategoryMarkets({ enabled: open, locale, selectedCategory })
+  const selectedMarket = currentMarkets[0]
+  const embedElementName = `${siteSlug}-market-embed`
+  const embedIframeTitle = `${siteSlug}-market-iframe`
+
+  function handleSelectedCategoryChange(nextValue: string) {
+    setSelectedCategoryState(nextValue)
+  }
+
+  function handleDialogOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      setCopied(false)
+    }
+    onOpenChange(nextOpen)
+  }
+
+  const {
+    iframeHeight,
+    iframeSrc,
+    previewSrc,
+    iframeCode,
+    webComponentCode,
+    iframeLines,
+    webComponentLines,
+  } = useEmbedCode({
+    selectedCategory,
+    locale,
+    theme,
+    showVolume,
+    showChart,
+    showTimeRange,
+    affiliateCode,
+    embedElementName,
+    embedIframeTitle,
+    selectedMarketSlug: selectedMarket?.slug ?? '',
+  })
+  const activeCode = embedType === 'iframe' ? iframeCode : webComponentCode
+  const canCopy = embedType === 'iframe'
+    ? Boolean(iframeSrc)
+    : Boolean(selectedMarket?.slug)
 
   async function handleCopy() {
     if (!canCopy) {

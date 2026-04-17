@@ -27,6 +27,10 @@ const initialState = {
 
 const AUTOMATIC_MODEL_VALUE = '__AUTOMATIC__'
 
+function formatBlockedCountriesValue(countries: string[]) {
+  return countries.join(', ')
+}
+
 interface ModelOption {
   id: string
   label: string
@@ -50,6 +54,7 @@ interface InitialGlobalAnnouncementSettings {
 interface AdminGeneralSettingsFormProps {
   initialThemeSiteSettings: AdminThemeSiteSettingsInitialState
   initialGlobalAnnouncement: InitialGlobalAnnouncementSettings
+  initialBlockedCountries: string[]
   initialTermsOfServicePdfPath: string
   initialTermsOfServicePdfUrl: string | null
   openRouterSettings: OpenRouterGeneralSettings
@@ -73,6 +78,7 @@ function toCustomJavascriptCodeConfig({ id: _id, ...code }: CustomJavascriptCode
 function AdminGeneralSettingsFormInner({
   initialThemeSiteSettings,
   initialGlobalAnnouncement,
+  initialBlockedCountries,
   initialTermsOfServicePdfPath,
   initialTermsOfServicePdfUrl,
   openRouterSettings,
@@ -130,6 +136,7 @@ function AdminGeneralSettingsFormInner({
   const [linkedinLink, setLinkedinLink] = useState(initialLinkedinLink)
   const [youtubeLink, setYoutubeLink] = useState(initialYoutubeLink)
   const [supportUrl, setSupportUrl] = useState(initialSupportUrl)
+  const [blockedCountries, setBlockedCountries] = useState(initialBlockedCountries)
   const [globalAnnouncementMessage, setGlobalAnnouncementMessage] = useState(initialGlobalAnnouncementMessage)
   const [globalAnnouncementLinkUrl, setGlobalAnnouncementLinkUrl] = useState(initialGlobalAnnouncementLinkUrl)
   const [globalAnnouncementDisabledOn, setGlobalAnnouncementDisabledOn] = useState<CustomJavascriptCodeDisablePage[]>(
@@ -196,6 +203,7 @@ function AdminGeneralSettingsFormInner({
     () => JSON.stringify(globalAnnouncementDisabledOn),
     [globalAnnouncementDisabledOn],
   )
+  const blockedCountriesValue = useMemo(() => formatBlockedCountriesValue(blockedCountries), [blockedCountries])
   const customJavascriptCodeDisablePageOptions = useMemo(() => ([
     { value: 'home' as const, label: t('Home') },
     { value: 'event' as const, label: '/event' },
@@ -218,6 +226,24 @@ function AdminGeneralSettingsFormInner({
   function handleOpenRouterModelChange(nextValue: string) {
     setOpenRouterSelectValue(nextValue)
     setOpenRouterModel(nextValue === AUTOMATIC_MODEL_VALUE ? '' : nextValue)
+  }
+
+  function handleToggleBlockedCountry(code: string, checked: boolean) {
+    setBlockedCountries((previous) => {
+      if (checked) {
+        if (previous.includes(code)) {
+          return previous
+        }
+
+        return [...previous, code]
+      }
+
+      return previous.filter(countryCode => countryCode !== code)
+    })
+  }
+
+  function handleClearBlockedCountries() {
+    setBlockedCountries([])
   }
 
   function toggleSection(value: string) {
@@ -354,6 +380,7 @@ function AdminGeneralSettingsFormInner({
       <input type="hidden" name="tos_pdf_path" value={tosPdfPath} />
       <input type="hidden" name="custom_javascript_codes_json" value={serializedCustomJavascriptCodes} />
       <input type="hidden" name="global_announcement_disabled_on_json" value={serializedGlobalAnnouncementDisabledOn} />
+      <input type="hidden" name="blocked_countries" value={blockedCountriesValue} />
 
       <div className="grid gap-6">
         <BrandIdentitySection
@@ -431,6 +458,9 @@ function AdminGeneralSettingsFormInner({
           hasUploadedTermsOfServicePdf={hasUploadedTermsOfServicePdf}
           initialTermsOfServicePdfUrl={initialTermsOfServicePdfUrl}
           onRemoveTermsOfServicePdf={handleRemoveTermsOfServicePdf}
+          blockedCountries={blockedCountries}
+          onToggleBlockedCountry={handleToggleBlockedCountry}
+          onClearBlockedCountries={handleClearBlockedCountries}
         />
 
         <IntegrationsSection
@@ -487,6 +517,7 @@ export default function AdminGeneralSettingsForm(props: AdminGeneralSettingsForm
   const formResetKey = JSON.stringify({
     initialThemeSiteSettings: props.initialThemeSiteSettings,
     initialGlobalAnnouncement: props.initialGlobalAnnouncement,
+    initialBlockedCountries: props.initialBlockedCountries,
     initialTermsOfServicePdfPath: props.initialTermsOfServicePdfPath,
     initialTermsOfServicePdfUrl: props.initialTermsOfServicePdfUrl,
     openRouterSettings: props.openRouterSettings,
