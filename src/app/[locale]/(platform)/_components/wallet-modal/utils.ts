@@ -56,7 +56,7 @@ export function getSelectedWalletTokenId(items: LiFiWalletTokenItem[], preferred
   }
 
   const firstEnabledItem = items.find(item => !item.disabled)
-  return firstEnabledItem?.id ?? items[0].id
+  return firstEnabledItem?.id ?? ''
 }
 
 export type WalletDepositView = 'fund' | 'receive' | 'wallets' | 'amount' | 'confirm' | 'success'

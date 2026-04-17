@@ -26,7 +26,7 @@ function WalletAmountStep({
     const cleaned = sanitizeNumericInput(rawValue)
     const numericValue = Number.parseFloat(cleaned)
 
-    if (cleaned === '' || numericValue <= MAX_AMOUNT_INPUT) {
+    if (cleaned === '' || Number.isNaN(numericValue) || numericValue <= MAX_AMOUNT_INPUT) {
       onAmountChange(cleaned)
     }
   }
@@ -74,7 +74,7 @@ function WalletAmountStep({
   })
   const inputValue = formatDisplayAmount(amountValue)
   const quickLabels = ['25%', '50%', '75%', 'Max']
-  const placeholderText = selectedTokenSymbol ? `0.00 ${selectedTokenSymbol}` : '0.00'
+  const placeholderText = '0.00'
   const minChWidth = placeholderText.length + 1
 
   return (

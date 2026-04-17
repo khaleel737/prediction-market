@@ -95,11 +95,15 @@ function WalletFundMenu({
         className={`
           group flex w-full items-center justify-between gap-4 rounded-lg border border-border px-4 py-2 text-left
           transition
-          hover:bg-muted/50
-          disabled:cursor-not-allowed disabled:opacity-50
+          ${IS_TEST_MODE ? 'cursor-not-allowed opacity-50' : 'hover:bg-muted/50'}
         `}
-        onClick={onWallet}
-        disabled={IS_TEST_MODE}
+        onClick={() => {
+          if (IS_TEST_MODE) {
+            return
+          }
+          onWallet()
+        }}
+        aria-disabled={IS_TEST_MODE}
       >
         <div className="flex items-center gap-3">
           <div className="flex size-12 items-center justify-center text-foreground">

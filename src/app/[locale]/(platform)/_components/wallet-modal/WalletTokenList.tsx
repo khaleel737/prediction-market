@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { MIN_USD_BALANCE } from '@/hooks/useLiFiWalletTokens'
 import { cn } from '@/lib/utils'
 
 function WalletTokenList({
@@ -28,6 +29,8 @@ function WalletTokenList({
   onSelect: (id: string) => void
 }) {
   const showEmptyState = !isLoadingTokens && items.length === 0
+  const selectedItem = items.find(item => item.id === selectedId)
+  const hasValidSelection = Boolean(selectedItem && !selectedItem.disabled)
 
   return (
     <div className="space-y-4">
@@ -148,7 +151,8 @@ function WalletTokenList({
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>
-                        Minimum required: $2.00
+                        Minimum required: $
+                        {MIN_USD_BALANCE.toFixed(2)}
                       </TooltipContent>
                     </Tooltip>
                   )}
@@ -167,7 +171,7 @@ function WalletTokenList({
         type="button"
         className="h-12 w-full"
         onClick={onContinue}
-        disabled={!selectedId || isLoadingTokens || showEmptyState}
+        disabled={!hasValidSelection || isLoadingTokens || showEmptyState}
       >
         Continue
       </Button>

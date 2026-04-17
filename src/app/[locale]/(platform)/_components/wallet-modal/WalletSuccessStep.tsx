@@ -33,8 +33,8 @@ function WalletSuccessStep({
   onClose: () => void
   onNewDeposit: () => void
 }) {
-  const eoaSuffix = walletEoaAddress?.slice(-4) ?? '1234'
-  const safeSuffix = walletAddress?.slice(-4) ?? '5678'
+  const eoaSuffix = walletEoaAddress?.slice(-4)
+  const safeSuffix = walletAddress?.slice(-4)
   const site = useSiteIdentity()
   const supportUrl = site.supportUrl
   const supportIsEmail = supportUrl?.startsWith('mailto:') ?? false
@@ -83,9 +83,8 @@ function WalletSuccessStep({
               <span>Source</span>
               <span className="flex items-center gap-2 font-semibold text-foreground">
                 <WalletIcon className="size-4" />
-                Wallet (...
-                {eoaSuffix}
-                )
+                Wallet
+                {eoaSuffix ? ` (...${eoaSuffix})` : ''}
                 {walletEoaAddress && (
                   <a
                     href={`${POLYGON_SCAN_BASE}/address/${walletEoaAddress}`}
@@ -115,9 +114,8 @@ function WalletSuccessStep({
                 />
                 {siteLabel}
                 {' '}
-                Wallet (...
-                {safeSuffix}
-                )
+                Wallet
+                {safeSuffix ? ` (...${safeSuffix})` : ''}
                 {walletAddress && (
                   <a
                     href={`${POLYGON_SCAN_BASE}/address/${walletAddress}`}

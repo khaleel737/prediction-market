@@ -41,7 +41,7 @@ function WalletConfirmStep({
   refreshIndex: number
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const eoaSuffix = walletEoaAddress?.slice(-4) ?? '542d'
+  const eoaSuffix = walletEoaAddress?.slice(-4)
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false)
   const site = useSiteIdentity()
   const formattedAmount = formatDisplayAmount(amountValue)
@@ -88,9 +88,8 @@ function WalletConfirmStep({
               <span>Source</span>
               <span className="flex items-center gap-2 font-semibold text-foreground">
                 <WalletIcon className="size-4" />
-                Wallet (...
-                {eoaSuffix}
-                )
+                Wallet
+                {eoaSuffix ? ` (...${eoaSuffix})` : ''}
               </span>
             </div>
           </div>
