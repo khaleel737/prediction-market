@@ -85,6 +85,23 @@ function resolveEventHeaderTaxonomy({
   }
 }
 
+function useScrollPastThreshold(threshold: number) {
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(function trackScrollPastThreshold() {
+    function handleWindowScroll() {
+      setScrolled(window.scrollY > threshold)
+    }
+
+    window.addEventListener('scroll', handleWindowScroll)
+    return function removeWindowScrollListener() {
+      window.removeEventListener('scroll', handleWindowScroll)
+    }
+  }, [threshold])
+
+  return scrolled
+}
+
 function EventHeaderTaxonomyItem({
   href,
   label,
@@ -111,7 +128,7 @@ function EventHeaderTaxonomyItem({
 }
 
 export default function EventHeader({ event }: EventHeaderProps) {
-  const [scrolled, setScrolled] = useState(false)
+  const scrolled = useScrollPastThreshold(20)
   const { childParentMap, tags } = usePlatformNavigationData()
   const taxonomy = useMemo(
     () => resolveEventHeaderTaxonomy({
@@ -121,15 +138,6 @@ export default function EventHeader({ event }: EventHeaderProps) {
     }),
     [childParentMap, event, tags],
   )
-
-  useEffect(() => {
-    function onScroll() {
-      setScrolled(window.scrollY > 20)
-    }
-
-    window.addEventListener('scroll', onScroll)
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
 
   return (
     <div
