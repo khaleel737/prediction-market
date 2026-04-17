@@ -168,14 +168,13 @@ function useOrderBookUserOrderCancellation({
   openOrdersQueryKey,
   eventOpenOrdersQueryKey,
   openTradeRequirements,
-  t,
 }: {
   queryClient: ReturnType<typeof useQueryClient>
   openOrdersQueryKey: readonly unknown[]
   eventOpenOrdersQueryKey: readonly unknown[]
   openTradeRequirements: (options: { forceTradingAuth: boolean }) => void
-  t: ReturnType<typeof useExtracted>
 }) {
+  const t = useExtracted()
   const refreshTimeoutRef = useRef<number | null>(null)
   const [pendingCancelIds, setPendingCancelIds] = useState<Set<string>>(() => new Set())
 
@@ -322,7 +321,6 @@ export default function EventOrderBook({
     openOrdersQueryKey,
     eventOpenOrdersQueryKey,
     openTradeRequirements,
-    t,
   })
 
   const {
