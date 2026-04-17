@@ -31,8 +31,9 @@ function CountdownBadgeContent({
           hasTriggeredResetRef.current = true
           onResetRef.current?.()
         }
-        endTimeRef.current = now + seconds * 1000
-        diff = seconds * 1000
+        const restartNow = Date.now()
+        endTimeRef.current = restartNow + seconds * 1000
+        diff = endTimeRef.current - restartNow
         hasTriggeredResetRef.current = false
       }
       const next = Math.max(0, Math.ceil(diff / 1000))
