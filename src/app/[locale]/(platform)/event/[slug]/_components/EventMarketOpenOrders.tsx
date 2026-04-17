@@ -146,7 +146,6 @@ function useOpenOrdersCancellation({
   openOrdersQueryKey,
   eventOpenOrdersQueryKey,
   openTradeRequirements,
-  t,
 }: {
   marketConditionId: string
   sortedOrders: UserOpenOrder[]
@@ -154,8 +153,8 @@ function useOpenOrdersCancellation({
   openOrdersQueryKey: readonly unknown[]
   eventOpenOrdersQueryKey: readonly unknown[]
   openTradeRequirements: (options: { forceTradingAuth: boolean }) => void
-  t: ReturnType<typeof useExtracted>
 }) {
+  const t = useExtracted()
   const [pendingCancelIds, setPendingCancelIds] = useState<Set<string>>(() => new Set())
   const [isCancellingAll, setIsCancellingAll] = useState(false)
 
@@ -588,7 +587,6 @@ export default function EventMarketOpenOrders({ market, eventSlug }: EventMarket
     openOrdersQueryKey,
     eventOpenOrdersQueryKey,
     openTradeRequirements,
-    t,
   })
 
   const handleSort = useCallback(function toggleSortDirection(column: SortColumn) {
