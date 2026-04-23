@@ -1,3 +1,5 @@
+'use cache'
+
 import type { Metadata } from 'next'
 import type { SupportedLocale } from '@/i18n/locales'
 import { setRequestLocale } from 'next-intl/server'
@@ -63,20 +65,19 @@ export async function generateMetadata({
   })
 }
 
-async function CachedSportsEventMarketPageContent({
-  locale,
-  sport,
-  event,
-  market,
-}: {
-  locale: string
-  sport: string
-  event: string
-  market: string
-}) {
-  'use cache'
-
+export default async function SportsEventMarketPage({
+  params,
+}: PageProps<'/[locale]/sports/[sport]/[event]/[market]'>) {
+  const { locale, sport, event, market } = await params
+  setRequestLocale(locale)
   const resolvedLocale = locale as SupportedLocale
+  if (
+    sport === STATIC_PARAMS_PLACEHOLDER
+    || event === STATIC_PARAMS_PLACEHOLDER
+    || market === STATIC_PARAMS_PLACEHOLDER
+  ) {
+    notFound()
+  }
 
   const canonicalEventSlug = await resolveCanonicalEventSlugFromSportsPath(sport, event)
   if (!canonicalEventSlug) {
@@ -163,28 +164,5 @@ async function CachedSportsEventMarketPageContent({
         />
       </EventMarketChannelProvider>
     </>
-  )
-}
-
-export default async function SportsEventMarketPage({
-  params,
-}: PageProps<'/[locale]/sports/[sport]/[event]/[market]'>) {
-  const { locale, sport, event, market } = await params
-  setRequestLocale(locale)
-  if (
-    sport === STATIC_PARAMS_PLACEHOLDER
-    || event === STATIC_PARAMS_PLACEHOLDER
-    || market === STATIC_PARAMS_PLACEHOLDER
-  ) {
-    notFound()
-  }
-
-  return (
-    <CachedSportsEventMarketPageContent
-      locale={locale}
-      sport={sport}
-      event={event}
-      market={market}
-    />
   )
 }
