@@ -2536,6 +2536,9 @@ export const EventRepository = {
     slug: string,
     locale: SupportedLocale = DEFAULT_LOCALE,
   ): Promise<QueryResult<{ title: string }>> {
+    'use cache'
+    cacheTag(cacheTags.event(slug))
+
     return runQuery(async () => {
       const result = await db
         .select({ id: events.id, title: events.title })
